@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from endpoints.auth import router as auth_router
 from endpoints.vehicles import router as vehicles_router
 
+
 app = FastAPI()
 
 # This is auth router imported from endpoints
