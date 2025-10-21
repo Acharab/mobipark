@@ -20,28 +20,7 @@ ROLE_ADMIN = "ADMIN"
 
 
 def require_auth(request: Request) -> Dict[str, str]:
-    """
-    Authentication dependency that validates the user's session token.
     
-    Extracts the Authorization header from the request and validates it
-    against active sessions. If valid, returns the session user data.
-    
-    Args:
-        request: The incoming HTTP request containing the Authorization header
-        
-    Returns:
-        Dict containing user session data with keys:
-            - username: The authenticated user's username
-            - role: The user's role (USER or ADMIN)
-            
-    Raises:
-        HTTPException: 401 if Authorization header is missing or invalid
-        
-    Example:
-        @router.get("/protected")
-        def protected_route(user: dict = Depends(require_auth)):
-            return {"message": f"Hello {user['username']}"}
-    """
     auth_token = request.headers.get("Authorization")
     
     if not auth_token:
