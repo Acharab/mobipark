@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Dict
 
 import fastapi
 from fastapi import APIRouter, Request, HTTPException, Depends, status
@@ -38,8 +39,19 @@ router = APIRouter(
 )
 
 @router.get(
-    "/parking-lots/{parkinglot_id}",
+    "/parking-lots/{parking_lot_id}",
     summary="Retrieve a single parking lot by ID",
     response_description="Parking lot details"
 )
-def get_parking_lot_by_id():
+def get_parking_lot_by_id(parking_lot_id: str):
+    parking_lots = load_parking_lot_data()
+    return parking_lots[parking_lot_id]
+
+@router.get(
+    "/parking-lots/",
+    summary="Retrieve all current parking lots",
+    response_description="Parking lot details"
+)
+def get_parking_lots():
+    parking_lots = load_parking_lot_data()
+    return parking_lots
