@@ -1,37 +1,17 @@
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 
 from fastapi import APIRouter, Request, HTTPException, Depends, status, Header
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 from models.parking_lots_model import ParkingLot, Coordinates, ParkingSessionCreate
 
-from utils.session_manager import get_session
+from services import parking_services, auth_services
 from utils.storage_utils import (
     save_parking_lot_data,
     load_parking_lot_data,
     save_parking_session_data,
     load_parking_session_data
 )
-
-def require_auth(request: Request) -> Dict[str, str]:
-    auth_token = request.headers.get("Authorization")
-    
-    if not auth_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization header"
-        )
-    
-    session_user = get_session(auth_token)
-    
-    if not session_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session token"
-        )
-    
-    return session_user
 
 router = APIRouter(
     tags=["parking-lots"],
@@ -65,7 +45,7 @@ def get_parking_lots():
     summary="Retrieve session(s) in a specific parking lot",
     response_description="Parking session details"
 )
-def get_parking_sessions(parking_lot_id: str, session_user: Dict[str, str] = Depends(require_auth)):
+def get_parking_sessions(parking_lot_id: str, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
     parking_sessions = load_parking_session_data(parking_lot_id)
     sessions_to_display = []
 
@@ -83,46 +63,12 @@ def get_parking_sessions(parking_lot_id: str, session_user: Dict[str, str] = Dep
     summary="Create new parking lot",
     response_description="Parking lot creation"
 )
-def create_parking_lot(parking_lot: ParkingLot, session_user: Dict[str, str] = Depends(require_auth)):
-    if session_user.get("role") != "ADMIN":
-        return HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized"
-        )
-    
-    # TODO: Validate parking lots
-    parking_lots = load_parking_lot_data()
-    new_id = None
-    if parking_lots:
-        new_id = str(max(int(k) for k in parking_lots.keys()) + 1)
-    else: new_id = "1"
+def create_parking_lot(parking_lot: ParkingLot, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
+    auth_services.verify_admin(session_user)
+    new_lot = parking_services.create_parking_lot(parking_lot, session_user)
 
-    parking_lot_entry = {
-        "name": parking_lot.name,
-        "location": parking_lot.location,
-        "address": parking_lot.address,
-        "capacity": parking_lot.capacity,
-        "reserved": parking_lot.reserved,
-        "tariff": parking_lot.tariff,
-        "daytariff": parking_lot.daytariff,
-        "created_at": parking_lot.created_at,
-        "coordinates": {
-            parking_lot.coordinates.lat,
-            parking_lot.coordinates.lng
-        }
-    }
-
-    try:
-        parking_lots[new_id] = parking_lot_entry
-        save_parking_lot_data(parking_lots)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save parking lot"
-        )
-    
     return JSONResponse(
-        content=parking_lot_entry,
+        content=new_lot,
         status_code=status.HTTP_200_OK
     )
 
@@ -132,33 +78,11 @@ def create_parking_lot(parking_lot: ParkingLot, session_user: Dict[str, str] = D
 def start_parking_session(
     parking_lot_id: str,
     session_data: ParkingSessionCreate,
-    session_user: Dict[str, str] = Depends(require_auth)):
-
-    parking_sessions = load_parking_session_data(parking_lot_id)
-    new_id = None
-    if parking_sessions:
-        new_id = str(max(int(k) for k in parking_sessions.keys()) + 1)
-    else: new_id = "1"
-
-    parking_session_entry = {
-        "licenseplate": session_data.licenseplate,
-        "started": datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
-        "stopped": None,
-        "user": session_user.get("username")
-    }
-
-    try:
-        parking_sessions[new_id] = parking_session_entry
-        save_parking_session_data(parking_sessions, parking_lot_id)
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save parking session"
-        )
+    session_user: Dict[str, str] = Depends(auth_services.require_auth)):
+    started_session = parking_services.start_parking_session(parking_lot_id, session_data, session_user)
 
     return JSONResponse(
-    content=parking_session_entry,
+    content=started_session,
     status_code=status.HTTP_200_OK
     )
 
@@ -169,7 +93,7 @@ def start_parking_session(
 def stop_parking_session(
     parking_lot_id: str,
     session_data: ParkingSessionCreate,
-    session_user: Dict[str, str] = Depends(require_auth)):
+    session_user: Dict[str, str] = Depends(auth_services.require_auth)):
 
     # TODO: Add parking lot ID
     # TODO: Check for valid token
@@ -233,30 +157,12 @@ def stop_parking_session(
 def update_parking_lot(
     parking_lot_id: str,
     parking_lot_data: ParkingLot,
-    session_user: Dict[str, str] = Depends(require_auth)
+    session_user: Dict[str, str] = Depends(auth_services.require_auth)
 ):
-    if session_user.get("role") != "ADMIN":
-        return HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized"
-        )
-
-    parking_lots = load_parking_lot_data()
-    if parking_lot_id not in parking_lots:
-        raise HTTPException(404, "Parking lot not found")
-
-    updated_lot_encoded = jsonable_encoder(parking_lot_data)
-    parking_lots[parking_lot_id].update(updated_lot_encoded)
-    
-    try:
-        save_parking_lot_data(parking_lots)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update parking lot"
-        )
+    auth_services.verify_admin(session_user)
+    updated_lot = parking_services.update_parking_lot(parking_lot_id, parking_lot_data)
 
     return JSONResponse(
-        content=parking_lots[parking_lot_id],
+        content=updated_lot,
         status_code=status.HTTP_200_OK
     )
