@@ -9,7 +9,6 @@ from services import auth_services
 from utils import storage_utils
 
 def create_parking_lot(parking_lot: ParkingLot, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
-    # TODO: Validate parking lots
     parking_lots = storage_utils.load_parking_lot_data()
 
     new_id = None
@@ -27,8 +26,8 @@ def create_parking_lot(parking_lot: ParkingLot, session_user: Dict[str, str] = D
         "daytariff": parking_lot.daytariff,
         "created_at": parking_lot.created_at,
         "coordinates": {
-            parking_lot.coordinates.lat,
-            parking_lot.coordinates.lng
+            "lat": parking_lot.coordinates.lat,
+            "lng":parking_lot.coordinates.lng
         }
     }
 
@@ -67,6 +66,13 @@ def start_parking_session(
     session_user: Dict[str, str] = Depends(auth_services.require_auth)
     ):
     parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
+    for key, session in parking_sessions:
+        if session["licenseplate"] == session_data.licenseplate:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A session for this license plate already exists."
+            )
+
     new_id = None
     if parking_sessions:
         new_id = str(max(int(k) for k in parking_sessions.keys()) + 1)
@@ -89,3 +95,69 @@ def start_parking_session(
         )
     
     return parking_sessions[new_id]
+
+def stop_parking_session(parking_lot_id: str,
+    session_data: ParkingSessionCreate,
+    session_user: Dict[str, str] = Depends(auth_services.require_auth)):
+    # TODO: Add parking lot ID
+    # TODO: Check for valid token
+    # TODO: Calculate cost of session
+    # TODO: Update payment status
+    
+    updated_parking_session_entry = None
+    parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
+    for key, session in parking_sessions.items():
+        if session["licenseplate"] == session_data.licenseplate:
+
+            if session["user"] != session_user.get("username") and session_user.get("role") != "ADMIN":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Unauthorized - invalid or missing session token"
+                )
+
+            start_time = datetime.strptime(session["started"], "%d-%m-%Y %H:%M:%S")
+            stop_time = datetime.now()
+            duration = stop_time - start_time
+            # Check if duration in minutes should be rounded up or down
+            duration_minutes = int(duration.total_seconds() / 60)
+
+            updated_parking_session_entry = {
+                "licenseplate": session_data.licenseplate,
+                "started": session["started"],
+                "stopped": stop_time.strftime("%d-%m-%Y %H:%M:%S"),
+                "user": session["user"],
+                "duration_minutes": duration_minutes,
+                # Cost should be calculated using calculate_price from session_calculator.py
+                "cost": 0,
+                # Payment status should be updated through Payment endpoint (probably)
+                "payment_status": "Pending"
+            }
+            parking_sessions[key] = updated_parking_session_entry
+            break
+    if updated_parking_session_entry == None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not Found - Resource does not exist"
+        )
+
+    try:
+        storage_utils.save_parking_session_data(parking_sessions, parking_lot_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update parking session"
+        )
+    
+    return updated_parking_session_entry
+
+def get_parking_session(parking_lot_id: str, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
+    parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
+    sessions_to_display = []
+
+    if session_user.get("role") != "ADMIN":
+        for k, v in parking_sessions.items():
+            if v["user"] == session_user.get("username"):
+                sessions_to_display.append((k, v))
+        return sessions_to_display
+    else:
+        return parking_sessions

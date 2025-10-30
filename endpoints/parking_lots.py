@@ -29,6 +29,11 @@ router = APIRouter(
 )
 def get_parking_lot_by_id(parking_lot_id: str):
     parking_lots = load_parking_lot_data()
+    if parking_lot_id not in parking_lots:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Parking lot does not exist"
+        )
     return parking_lots[parking_lot_id]
 
 @router.get(
@@ -46,17 +51,7 @@ def get_parking_lots():
     response_description="Parking session details"
 )
 def get_parking_sessions(parking_lot_id: str, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
-    parking_sessions = load_parking_session_data(parking_lot_id)
-    sessions_to_display = []
-
-    # TODO: validate parking lots
-    if session_user.get("role") != "ADMIN":
-        for k, v in parking_sessions.items():
-            if v["user"] == session_user.get("username"):
-                sessions_to_display.append((k, v))
-        return sessions_to_display
-    else:
-        return parking_sessions
+    return parking_services.get_parking_session(parking_lot_id, session_user)
     
 @router.post(
     "/parking-lots/",
@@ -94,58 +89,10 @@ def stop_parking_session(
     parking_lot_id: str,
     session_data: ParkingSessionCreate,
     session_user: Dict[str, str] = Depends(auth_services.require_auth)):
-
-    # TODO: Add parking lot ID
-    # TODO: Check for valid token
-    # TODO: Calculate cost of session
-    # TODO: Update payment status
-    
-    updated_parking_session_entry = None
-    parking_sessions = load_parking_session_data(parking_lot_id)
-    for key, session in parking_sessions.items():
-        if session["licenseplate"] == session_data.licenseplate:
-
-            if session["user"] != session_user.get("username") and session_user.get("role") != "ADMIN":
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Unauthorized - invalid or missing session token"
-                )
-
-            start_time = datetime.strptime(session["started"], "%d-%m-%Y %H:%M:%S")
-            stop_time = datetime.now()
-            duration = stop_time - start_time
-            # Check if duration in minutes should be rounded up or down
-            duration_minutes = int(duration.total_seconds() / 60)
-
-            updated_parking_session_entry = {
-                "licenseplate": session_data.licenseplate,
-                "started": session["started"],
-                "stopped": stop_time.strftime("%d-%m-%Y %H:%M:%S"),
-                "user": session["user"],
-                "duration_minutes": duration_minutes,
-                # Cost should be calculated using calculate_price from session_calculator.py
-                "cost": 0,
-                # Payment status should be updated through Payment endpoint (probably)
-                "payment_status": "Pending"
-            }
-            parking_sessions[key] = updated_parking_session_entry
-            break
-    if updated_parking_session_entry == None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not Found - Resource does not exist"
-        )
-
-    try:
-        save_parking_session_data(parking_sessions, parking_lot_id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update parking session"
-        )
+    stopped_session = parking_services.stop_parking_session(parking_lot_id, session_data, session_user)
     
     return JSONResponse(
-    content=updated_parking_session_entry,
+    content=stopped_session,
     status_code=status.HTTP_200_OK
     )
 
