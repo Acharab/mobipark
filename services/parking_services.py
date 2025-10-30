@@ -152,12 +152,12 @@ def stop_parking_session(parking_lot_id: str,
 
 def get_parking_session(parking_lot_id: str, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
     parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
-    sessions_to_display = []
+    user_sessions = {}
 
     if session_user.get("role") != "ADMIN":
         for k, v in parking_sessions.items():
             if v["user"] == session_user.get("username"):
-                sessions_to_display.append((k, v))
-        return sessions_to_display
+                user_sessions[k] = v
+        return user_sessions
     else:
         return parking_sessions
