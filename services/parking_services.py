@@ -103,6 +103,7 @@ def stop_parking_session(parking_lot_id: str,
     # TODO: Check for valid token
     # TODO: Calculate cost of session
     # TODO: Update payment status
+    # TODO: Search by session id, rather than username
     
     updated_parking_session_entry = None
     parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
@@ -161,3 +162,39 @@ def get_parking_session(parking_lot_id: str, session_user: Dict[str, str] = Depe
         return user_sessions
     else:
         return parking_sessions
+    
+def delete_parking_lot(parking_lot_id: str):
+    parking_lots = storage_utils.load_parking_lot_data()
+
+    if parking_lot_id not in parking_lots:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not Found - Resource does not exist"
+        )
+
+    parking_lots.pop(parking_lot_id)
+    try:
+        storage_utils.save_parking_lot_data(parking_lots)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete parking lot"
+        )
+
+def delete_parking_session(parking_session_id: str, parking_lot_id: str):
+    parking_sessions = storage_utils.load_parking_session_data()
+
+    if parking_session_id not in parking_sessions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not Found - Resource does not exist"
+        )
+    
+    parking_sessions.pop(parking_lot_id)
+    try:
+        storage_utils.save_parking_session_data(parking_sessions)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete parking session"
+        )

@@ -83,7 +83,7 @@ def start_parking_session(
 
 
 @router.put(
-    "/parking-lots/sessions/{parking_lot_id}/stop"
+    "/parking-lots/{parking_lot_id}/sessions/stop"
 )
 def stop_parking_session(
     parking_lot_id: str,
@@ -113,3 +113,23 @@ def update_parking_lot(
         content=updated_lot,
         status_code=status.HTTP_200_OK
     )
+
+@router.delete(
+    "/parking-lots/{parking_lot_id}",
+    summary="Delete parking lot entry",
+    response_description="Deletes a parking lot entry by ID"
+)
+def delete_parking_lot(parking_lot_id: str, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
+    auth_services.verify_admin(session_user)
+    parking_services.delete_parking_lot(parking_lot_id)
+
+@router.delete(
+    "/parking-lots/{parking_lot_id}/sessions/{parking_session_id}",
+    summary="Delete session entry",
+    response_description="Deletes a parking session by ID"
+)
+def delete_parking_lot(parking_session_id: str,
+    parking_lot_id: str, 
+    session_user: Dict[str, str] = Depends(auth_services.require_auth)):
+    auth_services.verify_admin(session_user)
+    parking_services.delete_parking_session(parking_session_id, parking_lot_id)
