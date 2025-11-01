@@ -123,6 +123,11 @@ def delete_parking_lot(parking_lot_id: str, session_user: Dict[str, str] = Depen
     auth_services.verify_admin(session_user)
     parking_services.delete_parking_lot(parking_lot_id)
 
+    return JSONResponse(
+        content={},
+        response_description="Parking lot deleted"
+    )
+
 @router.delete(
     "/parking-lots/{parking_lot_id}/sessions/{parking_session_id}",
     summary="Delete session entry",
@@ -133,3 +138,8 @@ def delete_parking_lot(parking_session_id: str,
     session_user: Dict[str, str] = Depends(auth_services.require_auth)):
     auth_services.verify_admin(session_user)
     parking_services.delete_parking_session(parking_session_id, parking_lot_id)
+
+    return JSONResponse(
+        content={},
+        response_description="Parking lot deleted"
+    )
