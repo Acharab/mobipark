@@ -4,9 +4,13 @@ from utils import storage_utils
 
 url = "http://localhost:8000/"
 
-def create_user(username="test", password="test"):
+def create_user(isAdmin, username="test", password="test"):
     requests.post(f"{url}/register", json={"username": username, "password": password, "name": "tester"})
-    update_user_role(username)
+
+    if isAdmin:
+        update_user_role(username, "ADMIN")
+    else:
+        update_user_role(username, "USER")
 
 def delete_user(username="test"):
     filename = "../data/users.json"
@@ -17,13 +21,13 @@ def delete_user(username="test"):
     with open(filename, "w") as f:
         json.dump(new_users, f)
 
-def update_user_role(username):
+def update_user_role(username, role):
     filename = "../data/users.json"
     with open (filename, "r") as f:
         users = json.load(f)
     for user in users:
         if user["username"] == username:
-            user["role"] = "ADMIN"
+            user["role"] = role
     with open(filename, "w") as f:
         json.dump(users, f)
 
@@ -50,9 +54,17 @@ def find_parking_lot_id_by_name():
     with open(filename, "r") as f:
         parking_lots = json.load(f)
 
-    key_to_update = None
     for k, v in parking_lots.items():
         if v.get("name") == "TEST_PARKING_LOT":
+            return k
+        
+def find_parking_session_id_by_plate(parking_lot_id: str):
+    filename = f"../data/pdata/p{parking_lot_id}-sessions.json"
+    with open(filename, "r") as f:
+        parking_lots = json.load(f)
+
+    for k, v in parking_lots.items():
+        if v.get("licenseplate") == "TEST-PLATE":
             return k
 
 def get_session(username="test", password="test"):

@@ -104,12 +104,12 @@ def stop_parking_session(parking_lot_id: str,
     # TODO: Calculate cost of session
     # TODO: Update payment status
     # TODO: Search by session id, rather than username
+
+    print(f"session user: {session_user}")
     
     updated_parking_session_entry = None
     parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
-    print(parking_sessions)
     for key, session in parking_sessions.items():
-        print(f"Reading session entry {key}")
         if session["licenseplate"] == session_data.licenseplate:
 
             if session["user"] != session_user.get("username") and session_user.get("role") != "ADMIN":
@@ -192,7 +192,7 @@ def delete_parking_session(parking_session_id: str, parking_lot_id: str):
             detail="Not Found - Resource does not exist"
         )
     
-    parking_sessions.pop(parking_lot_id)
+    parking_sessions.pop(parking_session_id)
     try:
         storage_utils.save_parking_session_data(parking_sessions, parking_lot_id)
     except Exception as e:
