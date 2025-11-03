@@ -66,7 +66,7 @@ def start_parking_session(
     session_user: Dict[str, str] = Depends(auth_services.require_auth)
     ):
     parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
-    for key, session in parking_sessions:
+    for key, session in parking_sessions.items():
         if session["licenseplate"] == session_data.licenseplate:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -107,7 +107,9 @@ def stop_parking_session(parking_lot_id: str,
     
     updated_parking_session_entry = None
     parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
+    print(parking_sessions)
     for key, session in parking_sessions.items():
+        print(f"Reading session entry {key}")
         if session["licenseplate"] == session_data.licenseplate:
 
             if session["user"] != session_user.get("username") and session_user.get("role") != "ADMIN":

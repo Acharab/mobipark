@@ -1,7 +1,7 @@
 import pytest
 import requests
 import json
-from test.test_utils import create_user, delete_user, update_user_role, get_session, delete_parking_lot, find_parking_lot_id_by_name, url
+from test.test_utils import create_user, delete_user, get_session, delete_parking_lot, find_parking_lot_id_by_name, delete_parking_session, url
 
     # POST ENDPOINTS #
 
@@ -28,23 +28,25 @@ def test_create_parking_lot():
     delete_parking_lot()
 
 def test_start_and_stop_session():
+    parking_lot_id = 1
+    delete_parking_session(parking_lot_id)
     create_user()
     headers = get_session()
-    parking_lot_id = 1
-    res = requests.post(f"{url}/parking-lots/sessions/{1}/start", json={
+    res = requests.post(f"{url}/parking-lots/{parking_lot_id}/sessions/start", json={
         "licenseplate": "TEST-PLATE"
     },
     headers=headers)
 
     assert res.status_code == 200
 
-    res = requests.put(f"{url}/parking-lots/sessions/{1}/stop", json={
+    res = requests.put(f"{url}/parking-lots/{parking_lot_id}/sessions/stop", json={
         "licenseplate": "TEST-PLATE"
     },
     headers=headers)
 
     assert res.status_code == 200
     delete_user()
+    delete_parking_session(parking_lot_id)
 
 def test_stop_session_wrong_user():
     pass
@@ -132,8 +134,9 @@ def test_get_parking_lot():
 
 def test_get_sessions_admin():
     create_user()
+    headers = get_session()
     parking_lot_id = 1
-    res = requests.get(f"{url}/parking-lots/{parking_lot_id}/sessions")
+    res = requests.get(f"{url}/parking-lots/{parking_lot_id}/sessions", headers=headers)
 
     assert res.status_code == 200
     delete_user()

@@ -102,7 +102,6 @@ def save_payment_data(data):
 def load_discounts_data():
     return load_data("data/discounts.csv")
 
-
 def save_discounts_data(data):
     save_data("data/discounts.csv", data)
 

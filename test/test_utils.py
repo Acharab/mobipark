@@ -1,5 +1,6 @@
 import requests
 import json
+from utils import storage_utils
 
 url = "http://localhost:8000/"
 
@@ -35,6 +36,14 @@ def delete_parking_lot(name="TEST_PARKING_LOT"):
 
     with open(filename, "w") as f:
         json.dump(new_parking_lots, f)
+
+def delete_parking_session(parking_lot_id: str, license_plate="TEST-PLATE"):
+    filename = f"../data/pdata/p{parking_lot_id}-sessions.json"
+    with open(filename, "r") as f:
+        sessions = json.load(f)
+    new_parking_sessions = {k: v for k, v in sessions.items() if v.get("licenseplate") != license_plate}
+    with open(filename, "w") as f:
+        json.dump(new_parking_sessions, f)
 
 def find_parking_lot_id_by_name():
     filename = "../data/parking-lots.json"

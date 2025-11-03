@@ -68,7 +68,7 @@ def create_parking_lot(parking_lot: ParkingLot, session_user: Dict[str, str] = D
     )
 
 @router.post(
-    "/parking-lots/sessions/{parking_lot_id}/start"
+    "/parking-lots/{parking_lot_id}/sessions/start"
 )
 def start_parking_session(
     parking_lot_id: str,
