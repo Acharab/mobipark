@@ -6,6 +6,10 @@ class Coordinates(BaseModel):
     lat: float
     lng: float
 
+class UpdateCoordinates(BaseModel):
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+
 class ParkingLot(BaseModel):
     name: str
     location: str
@@ -18,15 +22,15 @@ class ParkingLot(BaseModel):
     coordinates: Coordinates
 
 class UpdateParkingLot(BaseModel):
-    name: Optional[str]
-    location: Optional[str]
-    address: Optional[str]
-    capacity: Optional[int]
-    reserved: Optional[int]
-    tariff: Optional[float]
-    daytariff: Optional[float]
-    created_at: Optional[str]
-    coordinates: Optional[Coordinates]
+    name: Optional[str] = None
+    location: Optional[str] = None
+    address: Optional[str] = None
+    capacity: Optional[int] = None
+    reserved: Optional[int] = None
+    tariff: Optional[float] = None
+    daytariff: Optional[float] = None
+    created_at: Optional[str] = None
+    coordinates: Optional[Coordinates] = None
 
 class ParkingSessionCreate(BaseModel):
     licenseplate: str

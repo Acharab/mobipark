@@ -127,8 +127,8 @@ def test_delete_parking_lot():
         "daytariff": 20.00,
         "created_at": "2025-12-12",
         "coordinates": {
-            "latitude": 40.712776,
-            "longitude": -74.005974
+            "lat": 40.712776,
+            "lng": -74.005974
         }}, 
     headers=headers)
     key_to_delete = find_parking_lot_id_by_name()

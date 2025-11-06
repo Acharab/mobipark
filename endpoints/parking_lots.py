@@ -3,7 +3,7 @@ from typing import Dict
 
 from fastapi import APIRouter, Request, HTTPException, Depends, status, Header
 from fastapi.responses import JSONResponse, Response
-from models.parking_lots_model import ParkingLot, Coordinates, ParkingSessionCreate
+from models.parking_lots_model import ParkingLot, Coordinates, ParkingSessionCreate, UpdateParkingLot
 
 from services import parking_services, auth_services
 from utils.storage_utils import (
@@ -103,7 +103,7 @@ def stop_parking_session(
 )
 def update_parking_lot(
     parking_lot_id: str,
-    parking_lot_data: ParkingLot,
+    parking_lot_data: UpdateParkingLot,
     session_user: Dict[str, str] = Depends(auth_services.require_auth)
 ):
     auth_services.verify_admin(session_user)

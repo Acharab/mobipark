@@ -42,23 +42,19 @@ def create_parking_lot(parking_lot: ParkingLot, session_user: Dict[str, str] = D
     
     return parking_lots[new_id]
 
-def update_parking_lot(parking_lot_id: str, parking_lot_data: UpdateParkingLot):
+def update_parking_lot(parking_lot_id: str, parking_lot_update: UpdateParkingLot):
     parking_lots = storage_utils.load_parking_lot_data()
     if parking_lot_id not in parking_lots:
         raise HTTPException(404, "Parking lot not found")
     
-    parking_dict = parking_lot_data.model_dump(exclude_unset=True)
-    # to be optimized
-    for key, lot in parking_lots.items():
-        if key == parking_lot_id:
-            for k, v in lot.items():
-                if k in parking_dict:
-                    lot[k] = parking_dict[k]
+    parking_lot = parking_lots[parking_lot_id]
+    update_data = parking_lot_update.model_dump(exclude_unset=True)
 
-    #             stored_item_model = UpdateParkingLot(**lot)
-    #             update_data = parking_lot_data.model_dump(exclude_unset=True)
-    #             updated_item = stored_item_model.model_copy(update=update_data)
-    #             lot = jsonable_encoder(updated_item)
+    if "coordinates" in update_data:
+        parking_lot["coordinates"].update(update_data["coordinates"])
+        del update_data["coordinates"]
+
+    parking_lot.update(update_data)
     
     try:
         storage_utils.save_parking_lot_data(parking_lots)
