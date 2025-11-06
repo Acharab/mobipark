@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import date, datetime
+from typing import Optional
 
 class Coordinates(BaseModel):
     lat: float
@@ -15,6 +16,17 @@ class ParkingLot(BaseModel):
     daytariff: float
     created_at: str
     coordinates: Coordinates
+
+class UpdateParkingLot(BaseModel):
+    name: Optional[str]
+    location: Optional[str]
+    address: Optional[str]
+    capacity: Optional[int]
+    reserved: Optional[int]
+    tariff: Optional[float]
+    daytariff: Optional[float]
+    created_at: Optional[str]
+    coordinates: Optional[Coordinates]
 
 class ParkingSessionCreate(BaseModel):
     licenseplate: str

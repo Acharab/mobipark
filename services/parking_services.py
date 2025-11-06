@@ -4,7 +4,7 @@ from typing import Dict
 from fastapi import HTTPException, status, Depends
 from fastapi.encoders import jsonable_encoder
 
-from models.parking_lots_model import ParkingLot, ParkingSessionCreate
+from models.parking_lots_model import ParkingLot, ParkingSessionCreate, UpdateParkingLot
 from services import auth_services
 from utils import storage_utils
 
@@ -42,13 +42,23 @@ def create_parking_lot(parking_lot: ParkingLot, session_user: Dict[str, str] = D
     
     return parking_lots[new_id]
 
-def update_parking_lot(parking_lot_id: str, parking_lot_data: ParkingLot):
+def update_parking_lot(parking_lot_id: str, parking_lot_data: UpdateParkingLot):
     parking_lots = storage_utils.load_parking_lot_data()
     if parking_lot_id not in parking_lots:
         raise HTTPException(404, "Parking lot not found")
     
-    updated_lot_encoded = jsonable_encoder(parking_lot_data)
-    parking_lots[parking_lot_id].update(updated_lot_encoded)
+    parking_dict = parking_lot_data.model_dump(exclude_unset=True)
+    # to be optimized
+    for key, lot in parking_lots.items():
+        if key == parking_lot_id:
+            for k, v in lot.items():
+                if k in parking_dict:
+                    lot[k] = parking_dict[k]
+
+    #             stored_item_model = UpdateParkingLot(**lot)
+    #             update_data = parking_lot_data.model_dump(exclude_unset=True)
+    #             updated_item = stored_item_model.model_copy(update=update_data)
+    #             lot = jsonable_encoder(updated_item)
     
     try:
         storage_utils.save_parking_lot_data(parking_lots)
@@ -105,8 +115,6 @@ def stop_parking_session(parking_lot_id: str,
     # TODO: Update payment status
     # TODO: Search by session id, rather than username
 
-    print(f"session user: {session_user}")
-    
     updated_parking_session_entry = None
     parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
     for key, session in parking_sessions.items():
@@ -152,18 +160,6 @@ def stop_parking_session(parking_lot_id: str,
         )
     
     return updated_parking_session_entry
-
-def get_parking_session(parking_lot_id: str, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
-    parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
-    user_sessions = {}
-
-    if session_user.get("role") != "ADMIN":
-        for k, v in parking_sessions.items():
-            if v["user"] == session_user.get("username"):
-                user_sessions[k] = v
-        return user_sessions
-    else:
-        return parking_sessions
     
 def delete_parking_lot(parking_lot_id: str):
     parking_lots = storage_utils.load_parking_lot_data()
@@ -200,3 +196,15 @@ def delete_parking_session(parking_session_id: str, parking_lot_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete parking session"
         )
+    
+def get_parking_session(parking_lot_id: str, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
+    parking_sessions = storage_utils.load_parking_session_data(parking_lot_id)
+    user_sessions = {}
+
+    if session_user.get("role") != "ADMIN":
+        for k, v in parking_sessions.items():
+            if v["user"] == session_user.get("username"):
+                user_sessions[k] = v
+        return user_sessions
+    else:
+        return parking_sessions

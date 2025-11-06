@@ -51,8 +51,8 @@ def test_start_and_stop_session():
 def test_stop_session_wrong_user():
     parking_lot_id = 1
     delete_parking_session(parking_lot_id)
-    create_user(False)
-    headers = get_session()
+    create_user(False, username="test_1", password="test_1")
+    headers = get_session(username="test_1", password="test_1")
     requests.post(f"{url}/parking-lots/{parking_lot_id}/sessions/start", json={
         "licenseplate": "TEST-PLATE"
     },
@@ -60,7 +60,7 @@ def test_stop_session_wrong_user():
 
     requests.post(f"{url}/logout", headers=headers)
     create_user(False, username="test_2", password="test_2")
-    headers2 = get_session()
+    headers2 = get_session(username="test_2", password="test_2")
 
     res = requests.put(f"{url}/parking-lots/{parking_lot_id}/sessions/stop", json={
         "licenseplate": "TEST-PLATE"
@@ -68,7 +68,7 @@ def test_stop_session_wrong_user():
     headers=headers2)
 
     assert res.status_code == 401
-    delete_user()
+    delete_user("test_1")
     delete_user("test_2")
     delete_parking_session(parking_lot_id)
 
@@ -76,7 +76,7 @@ def test_stop_session_wrong_user():
 
 def test_update_parking_lot():
     create_user(True)
-    headers = get_session()
+    headers = get_session() 
     res = requests.post(f"{url}/parking-lots/", json={
         "name": "TEST_PARKING_LOT",
         "location": "TEST_LOCATION",
@@ -101,7 +101,9 @@ def test_update_parking_lot():
         if v.get("name") == "TEST_PARKING_LOT":
             key_to_update = k
     
-    res = requests.put(f"{url}/parking-lots/{key_to_update}", json={"name": "TEST_PARKING_LOT_UPDATED"}, headers=headers)
+    res = requests.put(f"{url}/parking-lots/{key_to_update}", json={
+        "location": "Tilted Towers"},
+        headers=headers)
     assert res.status_code == 200
 
     delete_user()
