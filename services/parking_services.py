@@ -9,7 +9,7 @@ from utils import storage_utils
 
 # DONE: DE/INCREMENT RESERVED FIELD FOR PARKING LOTS WHEN A SESSION IS CREATED/DELETED
 # TODO: VALIDATE INPUT
-# TODO: FORMAT DATETIME TO ISO 8601
+# DONE: FORMAT DATETIME TO ISO 8601
 # TODO: CALCULATE COST OF SESSION
 # TODO: UPDATE PAYMENT STATUS
 
@@ -136,7 +136,7 @@ def start_parking_session(
 
     parking_session_entry = {
         "licenseplate": session_data.licenseplate,
-        "started": datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+        "started": datetime.now().isoformat(),
         "stopped": None,
         "user": session_user.get("username")
     }
@@ -178,7 +178,9 @@ def stop_parking_session(parking_lot_id: str,
                     detail="Unauthorized - invalid or missing session token"
                 )
 
-            start_time = datetime.strptime(session["started"], "%d-%m-%Y %H:%M:%S")
+
+            start_time = datetime.fromisoformat(session["started"])
+            start_time_no_ms = start_time.replace(microsecond=0)
             stop_time = datetime.now()
             duration = stop_time - start_time
             # Check if duration in minutes should be rounded up or down
@@ -186,8 +188,8 @@ def stop_parking_session(parking_lot_id: str,
 
             updated_parking_session_entry = {
                 "licenseplate": session_data.licenseplate,
-                "started": session["started"],
-                "stopped": stop_time.strftime("%d-%m-%Y %H:%M:%S"),
+                "started": start_time_no_ms.isoformat(),
+                "stopped": stop_time.isoformat(),
                 "user": session["user"],
                 "duration_minutes": duration_minutes,
                 # Cost should be calculated using calculate_price from session_calculator.py
