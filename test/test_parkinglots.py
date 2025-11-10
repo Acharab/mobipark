@@ -113,7 +113,24 @@ def test_update_parking_lot():
     delete_parking_lot()
 
 def test_update_session():
-    pass
+    parking_lot_id = "1"
+    create_user(True)
+    headers = get_session() 
+
+    requests.post(f"{url}/parking-lots/{parking_lot_id}/sessions/start", json={
+        "licenseplate": "TEST-PLATE"
+    },
+    headers=headers)
+    parking_session_id = find_parking_session_id_by_plate(parking_lot_id)
+
+    res = requests.put(f"{url}/parking-lots/{parking_lot_id}/sessions/{parking_session_id}", json={
+        "licenseplate": "TEST-PLATE-UPDATED"
+    },
+    headers=headers)
+    assert res.status_code == 200
+
+    delete_user()
+    delete_parking_session(parking_lot_id, "TEST-PLATE-UPDATED")
 
     # DELETE ENDPOINTS #
 

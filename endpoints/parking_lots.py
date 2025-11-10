@@ -114,6 +114,25 @@ def update_parking_lot(
         status_code=status.HTTP_200_OK
     )
 
+@router.put(
+    "/parking-lots/{parking_lot_id}/sessions/{parking_session_id}",
+    summary="Update parking session entry data",
+    response_description="Update parking session"
+)
+def update_parking_session(
+    parking_lot_id: str,
+    parking_session_id: str,
+    parking_session_data: ParkingSessionCreate,
+    session_user: Dict[str, str] = Depends(auth_services.require_auth)
+):
+    auth_services.verify_admin(session_user)
+    updated_session = parking_services.update_parking_session(parking_lot_id, parking_session_id, parking_session_data)
+
+    return JSONResponse(
+        content=updated_session,
+        status_code=status.HTTP_200_OK
+    )
+
 @router.delete(
     "/parking-lots/{parking_lot_id}",
     summary="Delete parking lot entry",

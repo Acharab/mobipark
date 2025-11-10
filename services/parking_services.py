@@ -263,3 +263,4 @@ def get_parking_session(parking_lot_id: str, session_user: Dict[str, str] = Depe
         return user_sessions
     else:
         return parking_sessions
+    
