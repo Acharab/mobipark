@@ -4,8 +4,9 @@ from typing import Dict
 from fastapi import HTTPException, status, Depends
 
 from models.parking_lots_model import ParkingLot, ParkingSessionCreate, UpdateParkingLot, UpdateParkingSessionOngoing, UpdateParkingSessionFinished
+from utils.session_calculator import calculate_price
 from services import auth_services
-from utils import storage_utils
+from utils import storage_utils, misc
 
 # DONE: DE/INCREMENT RESERVED FIELD FOR PARKING LOTS WHEN A SESSION IS CREATED/DELETED
 # TODO: VALIDATE INPUT
@@ -192,11 +193,16 @@ def stop_parking_session(parking_lot_id: str,
                 "stopped": stop_time.isoformat(),
                 "user": session["user"],
                 "duration_minutes": duration_minutes,
-                # Cost should be calculated using calculate_price from session_calculator.py
                 "cost": 0,
                 # Payment status should be updated through Payment endpoint (probably)
                 "payment_status": "Pending"
             }
+
+            parking_lots = storage_utils.load_parking_lot_data()
+            parking_session_id = misc.find_parking_session_id_by_plate(parking_lot_id, updated_parking_session_entry.get("licenseplate"))
+
+            session_price = calculate_price(parking_lots[parking_lot_id], parking_session_id, updated_parking_session_entry)
+            updated_parking_session_entry["cost"] = session_price[0] # calculate_price() returns tuple, index 0 is the calculated price
             parking_sessions[key] = updated_parking_session_entry
             break
     if updated_parking_session_entry == None:
@@ -265,4 +271,3 @@ def get_parking_session(parking_lot_id: str, session_user: Dict[str, str] = Depe
         return user_sessions
     else:
         return parking_sessions
-    
