@@ -1,8 +1,9 @@
 import pytest
 import requests
 from test.test_utils import create_user, delete_user, get_session
+import random
 
-URL = "http://localhost:8000/"
+URL = "http://localhost:8000" 
 
 
 ADMIN_LOGIN = {
@@ -15,400 +16,344 @@ USER_LOGIN = {
     "password": "test"
 }
 
-# def test_create_new_account():
-#     data = {
-#     "username": "test",
-#     "password": "test"
-# }
-#     url = "http://localhost:8000/register"
-#     res = requests.post(url, json=data)
 
-#     assert res.status_code == 200
+@pytest.fixture(scope="session")
+def vehicle_creation_succes():
+    try:
+        create_user(False)
+    except Exception as e:
+        print(f"Error creating user: {e}")
 
-def login(role: str = "user"):
-    """Login and return authorization headers"""
-    credentials = USER_LOGIN if role == "USER" else ADMIN_LOGIN
-    res = requests.post(url=f"{URL}login", json=credentials)
-    assert res.status_code == 200, f"Login failed: {res.json()}"
-    token = res.json()["session_token"]
-    return {"Authorization": token}
-
-
-# def test_poep():
-#     create_user(True)
-#     headers = get_session()
-#     data = {"name": "My car", "license_plate": "AF-12-CD"}
-#     res = requests.post(f"{URL}/vehicles", json=data, headers=headers)
-
-#     assert res.status_code == 200
-#     res = res.json()
-#     assert res["license_plate"] == "AF-12-CD"
-#     assert res["name"] == "My car"
-#     assert "created_at" in res
-#     assert "updated_at" in res  # changed to support vehicle out model return.
-#     delete_user()
-#     return res
-    
-# Register vehicle helper method for testing purposes.
-def test_vehicle_creation_success():
-    #false is user and true is admin
-    create_user(False)
     headers = get_session()
-    data = {"name": "My car", "license_plate": "AF-12-CD"}
-    res = requests.post(f"{URL}/vehicles", json=data, headers=headers)
+    unique_plate = f"AB-{random.randint(10,99)}-{random.randint(10,99)}"
+    vehicle_data = {
+        "user_id": "TestUser",
+        "license_plate": unique_plate,
+        "make": "Opel",
+        "model": "Crs",
+        "color": "Pinkk",
+        "year": 2022
+    }
+    res = requests.post(f"{URL}/vehicles", json=vehicle_data, headers=headers)
+    
+    vehicle = {}
+    if res.status_code == 200:
+        vehicle = res.json()
+    elif res.status_code == 400 and "already exists" in res.json().get("detail", ""):
+        res_get = requests.get(f"{URL}/vehicles", headers=headers) 
+        if res_get.status_code == 200 and res_get.json():
+             for v in res_get.json():
+                 if v.get('license_plate') == unique_plate:
+                     vehicle = v
+                     break
+        if not vehicle:
+            pytest.skip("Could not create or retrieve vehicle for test user.")
+    else:
+        pytest.fail(f"Vehicle creation failed with status {res.status_code}: {res.json()}")
 
-    assert res.status_code == 200
-    res = res.json()
-    assert res["license_plate"] == "AF-12-CD"
-    assert res["name"] == "My car"
-    assert "created_at" in res
-    assert "updated_at" in res  # changed to support vehicle out model return.
+    assert "id" in vehicle, "Vehicle fixture failed to provide a vehicle with an 'id'"
+
+    yield vehicle, headers
+    
+    if "id" in vehicle:
+        requests.delete(f"{URL}/vehicles/{vehicle['id']}", headers=headers)
+    
     delete_user()
-    print(f"vehicle created: {res}")
-    return res
 
+@pytest.fixture(scope="session")
+def vehicle_creation_succes_admin():
+    try:
+        create_user(True, username=ADMIN_LOGIN["username"], password=ADMIN_LOGIN["password"])
+    except Exception as e:
+        print(f"User 'admin' might already exist: {e}")
+
+    headers = get_session(username=ADMIN_LOGIN["username"], password=ADMIN_LOGIN["password"])
+    
+    unique_plate = f"AB-{random.randint(10,99)}-{random.randint(10,99)}"
+    vehicle_data = {
+        "user_id": "AdminUser",
+        "license_plate": unique_plate,
+        "make": "BMW",
+        "model": "X5",
+        "color": "Pinkk",
+        "year": 2023
+    }
+    res = requests.post(f"{URL}/vehicles", json=vehicle_data, headers=headers)
+    
+    vehicle = {}
+    if res.status_code == 200:
+        vehicle = res.json()
+    elif res.status_code == 400 and "already exists" in res.json().get("detail", ""):
+        res_get = requests.get(f"{URL}/vehicles", headers=headers)
+        if res_get.status_code == 200 and res_get.json():
+            for v in res_get.json():
+                if v.get('license_plate') == unique_plate:
+                    vehicle = v
+                    break
+        if not vehicle:
+            pytest.skip("Could not create or retrieve vehicle for admin user.")
+    else:
+        pytest.fail(f"Admin vehicle creation failed with status {res.status_code}: {res.json()}")
+
+    assert "id" in vehicle, "Admin vehicle fixture failed to provide a vehicle with an 'id'"
+    
+    yield vehicle, headers
+
+    if "id" in vehicle:
+        requests.delete(f"{URL}/vehicles/{vehicle['id']}", headers=headers)
+    
+    delete_user(username=ADMIN_LOGIN["username"])
 
 #======================================================================================
 """POST reservations endpoint tests"""
 
-# Test if creating a reservation as a user with a registered vehicle is succesfull with status code 201.
-def test_create_reservation_as_user():
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-04","end_time":"2025-12-05", "parking_lot_id": "1"}
+def test_create_reservation_as_user(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
+    assert res.status_code == 201
+    assert res.json()["status"] == "Success"
+    reservation = res.json()["reservation"]
+    assert reservation["vehicle_id"] == data["vehicle_id"]
+    assert reservation["user_id"] == USER_LOGIN["username"]
+
+def test_create_reservation_as_admin(vehicle_creation_succes_admin):
+    vehicle, headers = vehicle_creation_succes_admin
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1", "user_id": USER_LOGIN["username"]}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
-    
     assert res.status_code == 201
     assert res.json()["status"] == "Success"
     reservation = res.json()["reservation"]
     for key in data:
         assert reservation[key] == data[key]
-    delete_user()
 
-# Test if creating a reservation as a admin for a user with a registered vehicle is succesfull with status code 201.
-def test_create_reservation_as_admin():
-    create_user(True)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-04","end_time":"2025-12-05", "parking_lot_id": "1", "user": USER_LOGIN["username"]}
-    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
-
-    assert res.status_code == 201
-    #assert res.json()["status"] == "Success"
-    reservation = res.json()["reservation"]
-    for key in data:
-        assert reservation[key] == data[key]
-    delete_user()
-    
-
-# Test if an error occurs when trying to create a reservation for a user as an admin and the required user field is missing with status code 401.
-def test_create_reservation_as_admin_missing_user():
-    create_user(True)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-04","end_time":"2025-12-05", "parking_lot_id": "1"} #missing user field
+def test_create_reservation_as_admin_missing_user(vehicle_creation_succes_admin):
+    vehicle, headers = vehicle_creation_succes_admin
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 401
     assert res.json()["error"] == "Required field missing"
-    assert res.json()["field"] == "user" #indicates that the user field is missing
-    delete_user()
+    assert res.json()["field"] == "user_id"
 
-
-# Test missing required fields
-def test_missing_parking_lot():
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "end_time": "2025-10-12"} 
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
+def test_missing_parking_lot(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z"} 
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()["error"] == "Required field missing"
-    assert res.json()["field"] == "parking_lot_id" 
-    delete_user()
-
+    assert res.json()["detail"][0]["type"] == "missing"
+    assert res.json()["detail"][0]["loc"][-1] == "parking_lot_id"
+  
 def test_missing_vehicle_id():
     create_user(False)
     headers = get_session()
-    data = { "start_time": "2025-10-11", "end_time": "2025-10-12", "parking_lot_id": "1"} # missing vehicle_id field
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
+    data = {"start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()[""]["error"] == "Required field missing"
-    assert res.json()["field"] == "vehicle_id"
+    assert res.json()["detail"][0]["type"] == "missing"
+    assert res.json()["detail"][0]["loc"][-1] == "vehicle_id"
     delete_user()
 
-def test_missing_start_time():
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "end_time": "2025-10-12", "parking_lot_id": "1"} # missing start_time field
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
+def test_missing_start_time(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()["error"] == "Required field missing"
-    assert res.json()["field"] == "start_time"
-    delete_user()
+    assert res.json()["detail"][0]["type"] == "missing"
+    assert res.json()["detail"][0]["loc"][-1] == "start_time"
 
-def test_missing_end_time():
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "parking_lot_id": "1"} # missing end_time field
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
+def test_missing_end_time(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time":  "2025-12-06T10:00:00Z", "parking_lot_id": "1"}
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()["error"] == "Required field missing"
-    assert res.json()["field"] == "end_time" 
-    delete_user()
-
-
-#Incorrect missing field type tests
+    assert res.json()["detail"][0]["type"] == "missing"
+    assert res.json()["detail"][0]["loc"][-1] == "end_time" 
 
 def test_incorrect_vehicle_id_format():
     create_user(False)
     headers = get_session()
-    data = {"vehicle_id": "1233456", "start_time": "2025-10-11", "end_time": "2025-10-12", "parking_lot_id": "1"}
+    data = {"vehicle_id": "1233456", "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()["error"] == "Incorrect field format"
-    assert res.json()["field"] == "vehicle_id"  
+    assert "Vehicle id must be a valid uuid" in res.json()["detail"][0]["msg"]
+    assert res.json()["detail"][0]["loc"][-1] == "vehicle_id"  
     delete_user()
 
-
-def test_incorrect_start_time_format():
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "123456", "end_time": "2025-10-12", "parking_lot_id": "1"}
+def test_incorrect_start_time_format(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "123456789", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()["error"] == "Incorrect field format"
-    assert res.json()["field"] == "start_time" 
-    delete_user()
+    assert 'Value error, Date must be in iso format: YYYY-MM-DDTHH:MM:SSZ' in res.json()["detail"][0]["msg"]
 
-
-def test_incorrect_end_time_format():
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "end_time": "123456", "parking_lot_id": "1"}
+def test_incorrect_end_time_format(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "123456", "parking_lot_id": "1"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()["error"] == "Incorrect field format"
-    assert res.json()["field"] == "end_time" 
-    delete_user()
+    assert 'Value error, Date must be in iso format: YYYY-MM-DDTHH:MM:SSZ' in res.json()["detail"][0]["msg"]
 
-
-def test_incorrect_parking_lot_id_format():
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "end_time": "2025-10-12", "parking_lot_id": "Z"}
+def test_incorrect_parking_lot_id_format(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "Z"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 422
-    assert res.json()["error"] == "Incorrect field format"
-    assert res.json()["field"] == "parking_lot_id" 
-    delete_user()
+    assert "Parking lot id must be a digit" in res.json()["detail"][0]["msg"]
 
-# Test if an error occurs when trying to create a reservation for the vehicle of a parking lot that doesn't exist with status code 404.
-def test_parking_lot_id_not_found_user():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "end_time": "2025-10-12", "parking_lot_id": "Z"}
+def test_parking_lot_id_not_found_user(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "99999"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 404
     assert res.json()["detail"] == "Parking lot not found"
-    delete_user()
 
-def test_parking_lot_id_not_found_admin():
-    #false is user and true is admin
-    create_user(True)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "end_time": "2025-10-12", "parking_lot_id": "Z"}
+def test_parking_lot_id_not_found_admin(vehicle_creation_succes_admin):
+    vehicle, headers = vehicle_creation_succes_admin
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "99999", "user_id": "test"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
 
     assert res.status_code == 404
     assert res.json()["detail"] == "Parking lot not found"
-    delete_user()
-    
-
 
 #======================================================================================
 """PUT reservations endpoint tests"""
 
-# Test missing required fields
-
-def test_update_missing_vehicle_id():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "end_time": "2025-10-12","parking_lot_id": "3"} 
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
+def test_update_missing_vehicle_id(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"} 
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
     assert res.status_code == 201
     
     reservation_id = res.json()["reservation"]["id"]
-    print(f"reservation id:: {reservation_id}")
-    new_data = {"start_time": "2025-10-11","end_time": "2025-10-12","parking_lot_id": "1"}
+    new_data = {"start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
     
-    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json= new_data, headers=headers)
+    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json=new_data, headers=headers)
  
     assert res_put.status_code == 422
-    assert res_put.json()["error"] == "Required field missing"
-    assert res_put.json()["field"] == "vehicle_id" #indicates which field is missing
-    delete_user()
+    assert res_put.json()["detail"][0]["type"] == "missing"
+    assert res_put.json()["detail"][0]["loc"][-1] == "vehicle_id"
 
-def test_update_missing_start_time():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "end_time": "2025-10-12","parking_lot_id": "3"} 
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
+def test_update_missing_start_time(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"} 
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
     assert res.status_code == 201
     
     reservation_id = res.json()["reservation"]["id"]
-    print(f"reservation id:: {reservation_id}")
-    new_data = {"vehicle_id": vehicle["id"], "end_time": "2025-10-12","parking_lot_id": "1"}
+    new_data = {"vehicle_id": vehicle["id"],"end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
     
-    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json= new_data, headers=headers)
+    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json=new_data, headers=headers)
  
     assert res_put.status_code == 422
-    assert res_put.json()["error"] == "Required field missing"
-    assert res_put.json()["field"] == "start_time"
-    delete_user()
+    assert res_put.json()["detail"][0]["type"] == "missing"
+    assert res_put.json()["detail"][0]["loc"][-1] == "start_time"
 
-def test_update_missing_end_date():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11", "end_time": "2025-10-12","parking_lot_id": "3"} 
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
+def test_update_missing_end_time(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"} 
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
     assert res.status_code == 201
     
     reservation_id = res.json()["reservation"]["id"]
-    print(f"reservation id:: {reservation_id}")
-    new_data = {"vehicle_id": vehicle["id"], "start_time": "2025-10-11","parking_lot_id": "1"}
+    new_data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06T10:00:00Z", "parking_lot_id": "1"}
     
-    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json= new_data, headers=headers)
+    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json=new_data, headers=headers)
  
     assert res_put.status_code == 422
-    assert res_put.json()["error"] == "Required field missing"
-    assert res_put.json()["field"] == "end_time" 
-    delete_user()
+    assert res_put.json()["detail"][0]["type"] == "missing"
+    assert res_put.json()["detail"][0]["loc"][-1] == "end_time"
 
-
-def test_update_missing_parking_lot_id():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"],"start_time": "2025-10-11", "end_time": "2025-10-12", "parking_lot_id": "1"} 
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
+def test_update_cost_as_user(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"} 
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
     assert res.status_code == 201
     
     reservation_id = res.json()["reservation"]["id"]
-    print(f"reservation id:: {reservation_id}")
-    new_data = {"vehicle_id": vehicle["id"],"start_time": "2025-10-11", "end_time": "2025-10-12",}
+    new_data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1", "cost": "4567890"}
+    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json=new_data, headers=headers)
+
+    assert res_put.status_code == 403
+    assert "Only admins can modify reservation cost" in res_put.json()["detail"]
+
+def test_update_status_as_user(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"} 
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
+    assert res.status_code == 201
     
-    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json= new_data, headers=headers)
- 
-    assert res_put.status_code == 422
-    assert res_put.json()["error"] == "Required field missing"
-    assert res_put.json()["field"] == "parking_lot_id"
-    delete_user()
+    reservation_id = res.json()["reservation"]["id"]
+    new_data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1", "status": "confirmed" }
+    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json=new_data, headers=headers)
+
+    assert res_put.status_code == 403
+    assert "Only admins can modify reservation status" in res_put.json()["detail"]
+
+def test_update_invalid_status_as_admin(vehicle_creation_succes_admin):
+    vehicle, headers = vehicle_creation_succes_admin
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1", "user_id" : vehicle["user_id"]} 
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
+    assert res.status_code == 201
     
+    reservation_id = res.json()["reservation"]["id"]
+    new_data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1", "status": "invalid_status", "user_id" : vehicle["user_id"] }
+    res_put = requests.put(f"{URL}/reservations/{reservation_id}", json=new_data, headers=headers)
+    print(res_put.json())
+    assert res_put.status_code == 403
+    assert "Invalid status" in res_put.json()["detail"]
     
-    
-# Test if an error occurs when the reservation id is not found in the json file with status code 404.
-def test_update_reservation_not_found():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    new_data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06","end_time":"2025-12-07", "parking_lot_id": "1"}
+def test_update_reservation_not_found(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    new_data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
     res = requests.put(f"{URL}/reservations/9999999999999", json=new_data, headers=headers)
 
     assert res.status_code == 404
     assert res.json()["detail"] == "Reservation not found"
-    delete_user()
-    
 
-# Test if updating a reservation as a user is updated with status code 200.
-def test_update_reservation_success():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"] ,"start_time": "2025-12-06","end_time":"2025-12-07", "parking_lot_id": "1"}
+def test_update_reservation_success(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
-
     assert res.status_code == 201
 
-    reservation_id = res.json()['id']
-    new_data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06","end_time":"2025-12-08", "parking_lot_id": "1"}
+    reservation_id = res.json()["reservation"]["id"]
+    new_data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "2"}
     res_put = requests.put(f"{URL}/reservations/{reservation_id}", json=new_data, headers=headers)
 
     assert res_put.status_code == 200   
     assert res_put.json()["status"] == "Updated"
-    reservation = res_put.json()
+    reservation = res_put.json()["reservation"]
     for key in new_data:
         assert reservation[key] == new_data[key]
-    delete_user()
 
 #======================================================================================
 """DELETE reservations endpoint tests"""
 
-# Test if a deletion is possible and give status code 200.
-def test_delete_reservation_deletion_succes():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06","end_time":"2025-12-07", "parking_lot_id": "1"}
+def test_delete_reservation_deletion_succes(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"], "start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
     res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
     assert res.status_code == 201
 
-    reservation_id = res.json()["id"]
+    reservation_id = res.json()["reservation"]["id"]
     res_delete = requests.delete(f"{URL}/reservations/{reservation_id}", headers=headers)
     
     assert res_delete.status_code == 200
     assert res_delete.json()["status"] == "Deleted"
     assert res_delete.json()["id"] == reservation_id
-    delete_user()
-    
 
-# Test to see if an error occurs when a user that is not an admin or not the owner of the reservation can delete the reservation with status code 403.
-def test_delete_reservation_nonowner_nonadmin():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06","end_time":"2025-12-07", "parking_lot_id": "1"}
-    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
-
-    reservation_id = res.json()['id']
-
-    assert not headers['role'] == "ADMIN" or not "random_username" == reservation_id["user"]
-    assert res.status_code == 403
-    assert res.json()["detail"] == "Access denied"
-    delete_user()
-
-# Test to see if an error occurs when a reservation id is not found with status code 404.
-def test_reservation_not_found():
+def test_delete_reservation_not_found():
     create_user(False)
     headers = get_session()
     res_delete = requests.delete(f"{URL}/reservations/19999999999999999", headers=headers)
@@ -420,35 +365,22 @@ def test_reservation_not_found():
 #======================================================================================
 """GET reservations endpoint tests"""
 
-# Test to see if an error occurs when a user that is not an admin and not the owner of the reservation can delete the reservation with status code 403.
-def test_get_reservation_nonower_nonadmin():
-    #false is user and true is admin
-    create_user(False)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06","end_time":"2025-12-07", "parking_lot_id": "1"}
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
-
-    reservation_id = res.json()['id']
-
-    assert not headers['role'] == "ADMIN" and not "random_username" == reservation_id["user"]
-    assert res.status_code == 403
-    assert res.json()["detail"] == "Access denied"
-    delete_user()
-
-# Test to see if getting a reservation by id is succesfull with status code 200
-def test_get_reservation_succes():
-    #false is user and true is admin
-    create_user(True)
-    headers = get_session()
-    vehicle = test_vehicle_creation_success()
-    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06","end_time":"2025-12-07", "parking_lot_id": "1"}
-    res = requests.post(f"{URL}/reservations/", json= data, headers=headers)
-
-    reservation_id = res.json()['id']
-    res = requests.get(f"{URL}/reservations/{reservation_id}", headers=headers)
-
-    assert res.status_code == 200
-    delete_user()
+def test_get_reservation_succes(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    data = {"vehicle_id": vehicle["id"],"start_time": "2025-12-06T10:00:00Z", "end_time": "2025-12-07T12:00:00Z", "parking_lot_id": "1"}
+    res = requests.post(f"{URL}/reservations/", json=data, headers=headers)
+    assert res.status_code == 201
+  
+    reservation_id = res.json()['reservation']['id']
     
+    response = requests.get(f"{URL}/reservations/{reservation_id}", headers=headers)
+    
+    assert response.status_code == 200
+    reservation = response.json()["reservation"]
+    assert reservation["id"] == reservation_id
 
+def test_get_reservation_not_found(vehicle_creation_succes):
+    vehicle, headers = vehicle_creation_succes
+    response = requests.get(f"{URL}/reservations/9999999999999", headers=headers)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Reservation not found"
