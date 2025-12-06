@@ -33,6 +33,9 @@ class Payment(BaseModel):
     t_data: TData
     session_id: str  # Stored as string in JSON
     parking_lot_id: str  # Stored as string in JSON
+    original_amount: Optional[float] = Field(None, ge=0, description="Original amount before discount")
+    discount_applied: Optional[str] = Field(None, description="Discount code applied")
+    discount_amount: Optional[float] = Field(None, ge=0, description="Amount discounted")
 
     @field_validator('amount')
     @classmethod
@@ -52,6 +55,7 @@ class PaymentCreate(BaseModel):
     parking_lot_id: int  # User sends as int, we convert to string
     t_data: TData
     completed: Optional[str] = None
+    discount_code: Optional[str] = Field(None, description="Optional discount code to apply")
 
     @field_validator('amount')
     @classmethod

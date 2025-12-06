@@ -319,8 +319,49 @@ def load_discounts_data_from_db():
     return load_json_from_db("discounts")
 
 
+def get_discount_by_code(discount_code: str) -> Optional[Dict]:
+    return load_single_json_from_db("discounts", key_col="code", key_val=discount_code)
+
+
+def save_new_discount_to_db(discount_data: Dict):
+    insert_single_json_to_db("discounts", discount_data)
+
+
+def update_existing_discount_in_db(discount_code: str, discount_data: Dict):
+    update_single_json_in_db("discounts", key_col="code", key_val=discount_code, update_item=discount_data)
+
+
 def save_discounts_data_to_db(data):
     save_json_to_db("discounts", data)
+
+
+# --- Refunds ---
+def load_refunds_data_from_db():
+    return load_json_from_db("refunds")
+
+
+def get_refund_by_id(refund_id: str) -> Optional[Dict]:
+    return load_single_json_from_db("refunds", key_col="refund_id", key_val=refund_id)
+
+
+def save_new_refund_to_db(refund_data: Dict):
+    insert_single_json_to_db("refunds", refund_data)
+
+
+def update_existing_refund_in_db(refund_id: str, refund_data: Dict):
+    update_single_json_in_db("refunds", key_col="refund_id", key_val=refund_id, update_item=refund_data)
+
+
+def get_refunds_by_transaction_id(transaction_id: str) -> List[Dict]:
+    """Get all refunds for a specific transaction"""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT data FROM refunds WHERE json_extract(data, '$.original_transaction_id') = ?", (transaction_id,))
+            rows = cursor.fetchall()
+            return [json.loads(row[0]) for row in rows]
+    except Exception:
+        return []
 
 
 # -----------------------------------------------------------------
