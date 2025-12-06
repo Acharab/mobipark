@@ -11,7 +11,9 @@ from utils.storage_utils import (
     load_payment_data_from_db, 
     get_payment_data_by_id, 
     save_new_payment_to_db, 
-    update_existing_payment_in_db
+    update_existing_payment_in_db,
+    get_discount_by_code,
+    update_existing_discount_in_db
 )
 from models.payments_model import PaymentCreate, PaymentUpdate
 from utils.session_calculator import (
@@ -171,10 +173,80 @@ def create_payment(
                 detail="Failed to generate payment identifiers"
             )
         
+        # Handle discount application
+        original_amount = payment_create.amount
+        final_amount = payment_create.amount
+        discount_applied = None
+        discount_amount = 0.0
+        
+        if payment_create.discount_code:
+            try:
+                discount = get_discount_by_code(payment_create.discount_code)
+                if not discount:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Discount code '{payment_create.discount_code}' not found"
+                    )
+                
+                # Validate discount code
+                if not discount.get("active", True):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Discount code is not active"
+                    )
+                
+                # Check expiration
+                if discount.get("expires_at"):
+                    try:
+                        expires_at = datetime.fromisoformat(discount["expires_at"])
+                        if now > expires_at:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Discount code has expired"
+                            )
+                    except ValueError:
+                        # If date parsing fails, ignore expiration check
+                        pass
+                
+                # Check usage limits
+                max_uses = discount.get("max_uses")
+                current_uses = discount.get("current_uses", 0)
+                if max_uses is not None and current_uses >= max_uses:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Discount code has reached its usage limit"
+                    )
+                
+                # Apply discount
+                discount_type = discount["discount_type"]
+                discount_value = discount["discount_value"]
+                
+                if discount_type == "percentage":
+                    discount_amount = original_amount * (discount_value / 100)
+                elif discount_type == "fixed":
+                    discount_amount = min(discount_value, original_amount)  # Don't exceed original amount
+                
+                final_amount = max(0, original_amount - discount_amount)
+                discount_applied = payment_create.discount_code
+                
+                # Update discount usage count
+                updated_discount = discount.copy()
+                updated_discount["current_uses"] = current_uses + 1
+                update_existing_discount_in_db(payment_create.discount_code, updated_discount)
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Error applying discount: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to apply discount code"
+                )
+
         # Build the payment object
         payment = {
             "transaction": transaction_hash,
-            "amount": payment_create.amount,
+            "amount": final_amount,
             "initiator": session_user["username"],
             "created_at": f"{now.strftime('%d-%m-%Y %H:%M:%S')}{timestamp}",
             "completed": payment_create.completed or f"{now.strftime('%d-%m-%Y %H:%M:%S')}{timestamp}",
@@ -187,7 +259,10 @@ def create_payment(
                 "bank": payment_create.t_data.bank
             },
             "session_id": str(payment_create.session_id),
-            "parking_lot_id": str(payment_create.parking_lot_id)
+            "parking_lot_id": str(payment_create.parking_lot_id),
+            "original_amount": original_amount if discount_applied else None,
+            "discount_applied": discount_applied,
+            "discount_amount": discount_amount if discount_applied else None
         }
         
         # OPTIMIZATION: Persist the single new payment directly
