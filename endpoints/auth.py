@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Response, HTTPException, status
+from fastapi import APIRouter, Response, HTTPException, status, Header
 from utils.session_manager import add_session, remove_session, get_session
 from utils.storage_utils import load_user_data, save_user_data
 import uuid, hashlib, secrets
@@ -36,11 +36,11 @@ def login(login_data: LoginRequest, response: Response):
     )
 
 @router.post("/register")
-def register(register_data: RegisterRequest, response: Response):
+def register(register_data: RegisterRequest, response: Response, authorization: str = Header(None)):
     username = register_data.username
     password = register_data.password
     name = register_data.name
-    
+    role = register_data.role.upper() 
     
     if not username or not password or not name:
         raise HTTPException(
@@ -48,6 +48,19 @@ def register(register_data: RegisterRequest, response: Response):
             detail="Missing credentials"
         )
     
+    if role == "ADMIN":
+        if not authorization:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Admin authorization required"
+            )
+        admin_user = get_session(authorization)
+        if not admin_user or admin_user.get("role") != "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can create admin accounts"
+            )
+        
     users = load_user_data()
     
     if any(user.get("username") == username for user in users):
@@ -63,12 +76,8 @@ def register(register_data: RegisterRequest, response: Response):
         username= username,
         password=hashed_password,
         name=name,
-        role="USER"
+        role=role
     ).model_dump()
-    
-    
-
-    
     
     # Save user to database
     users.append(new_user)
