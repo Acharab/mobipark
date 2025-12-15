@@ -8,6 +8,7 @@ from dotenv import find_dotenv
 find_dotenv()
 use_mock_data = os.getenv("USE_MOCK_DATA", "true") == "true"
 MOCK_PARKING_LOTS = (Path(__file__).parent.parent / "mock_data/mock_parking-lots.json").resolve()
+MOCK_PARKING_SESSIONS = (Path(__file__).parent.parent / "mock_data/pdata/mock_p1-sessions.json").resolve()
 MOCK_USERS = (Path(__file__).parent.parent / "mock_data/mock_users.json").resolve()
 
 url = "http://localhost:8000/"
@@ -57,6 +58,8 @@ def delete_parking_lot(name="TEST_PARKING_LOT"):
 
 def delete_parking_session(parking_lot_id: str, license_plate="TEST-PLATE"):
     filename = f"../data/pdata/p{parking_lot_id}-sessions.json"
+    if use_mock_data:
+        filename = MOCK_PARKING_SESSIONS
     with open(filename, "r") as f:
         sessions = json.load(f)
     new_parking_sessions = {k: v for k, v in sessions.items() if v.get("licenseplate") != license_plate}
@@ -76,6 +79,8 @@ def find_parking_lot_id_by_name():
         
 def find_parking_session_id_by_plate(parking_lot_id: str):
     filename = f"../data/pdata/p{parking_lot_id}-sessions.json"
+    if use_mock_data:
+        filename = MOCK_PARKING_SESSIONS
     with open(filename, "r") as f:
         parking_lots = json.load(f)
 
