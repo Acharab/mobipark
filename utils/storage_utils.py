@@ -456,6 +456,7 @@ def load_user_data():
 def save_user_data(data):
     if use_mock_data:
         save_data(MOCK_USERS, data)
+        return
     save_data("data/users.json", data)
 
 
@@ -468,6 +469,7 @@ def load_parking_lot_data():
 def save_parking_lot_data(data):
     if use_mock_data:
         save_data(MOCK_PARKING_LOTS, data)
+        return
     save_data("data/parking-lots.json", data)
 
 
