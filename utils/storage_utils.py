@@ -446,10 +446,14 @@ def load_data(filename):
 
 
 def load_user_data():
+    if use_mock_data:
+        return load_data("mock_data/mock_users.json")
     return load_data("data/users.json")
 
 
 def save_user_data(data):
+    if use_mock_data:
+        save_data("mock_data/mock_users.json", data)
     save_data("data/users.json", data)
 
 
