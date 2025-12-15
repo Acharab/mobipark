@@ -473,6 +473,17 @@ def save_parking_lot_data(data):
         return
     save_data("data/parking-lots.json", data)
 
+def find_parking_session_id_by_plate(parking_lot_id: str, licenseplate="TEST-PLATE"):
+    filename = f"./data/pdata/p{parking_lot_id}-sessions.json"
+    if use_mock_data:
+        filename = MOCK_PARKING_SESSIONS
+    with open(filename, "r") as f:
+        parking_lots = json.load(f)
+
+    for k, v in parking_lots.items():
+        if v.get("licenseplate") == licenseplate:
+            return k
+
 
 def load_reservation_data():
     return load_data("data/reservations.json")
