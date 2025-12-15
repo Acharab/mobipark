@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 use_mock_data = os.getenv("USE_MOCK_DATA", "true") == "true"
 MOCK_PARKING_LOTS = (Path(__file__).parent.parent / "mock_data/mock_parking-lots.json").resolve()
+MOCK_PARKING_SESSIONS = (Path(__file__).parent.parent / "mock_data/mock_p1-sessions.json").resolve()
 MOCK_USERS = (Path(__file__).parent.parent / "mock_data/mock_users.json").resolve()
 
 # Define the database path globally
@@ -498,10 +499,15 @@ def save_discounts_data(data):
 
 
 def save_parking_session_data(data, lid):
+    if use_mock_data:
+        save_data(MOCK_PARKING_SESSIONS, data)
+        return
     save_data(f"data/pdata/p{lid}-sessions.json", data)
 
 
 def load_parking_session_data(lid):
+    if use_mock_data:
+        load_data(MOCK_PARKING_SESSIONS)
     return load_data(f"data/pdata/p{lid}-sessions.json")
 
 
