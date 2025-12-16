@@ -8,6 +8,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 use_mock_data = os.getenv("USE_MOCK_DATA", "true") == "true"
+MOCK_PARKING_LOTS = (Path(__file__).parent.parent / "mock_data/mock_parking-lots.json").resolve()
+MOCK_PARKING_SESSIONS = (Path(__file__).parent.parent / "mock_data/pdata/mock_p1-sessions.json").resolve()
+MOCK_USERS = (Path(__file__).parent.parent / "mock_data/mock_users.json").resolve()
 
 # Define the database path globally
 DB_PATH = Path(__file__).parent / "../data/mobypark.db"
@@ -421,7 +424,7 @@ def write_text(filename, data):
 
 
 def save_data(filename, data):
-    if filename.endswith(".json"):
+    if str(filename).endswith(".json"):
         write_json(filename, data)
     elif filename.endswith(".csv"):
         write_csv(filename, data)
@@ -432,7 +435,7 @@ def save_data(filename, data):
 
 
 def load_data(filename):
-    if filename.endswith(".json"):
+    if str(filename).endswith(".json"):
         return load_json(filename)
     elif filename.endswith(".csv"):
         return load_csv(filename)
@@ -447,26 +450,39 @@ def load_data(filename):
 
 def load_user_data():
     if use_mock_data:
-        return load_data("mock_data/mock_users.json")
+        return load_data(MOCK_USERS)
     return load_data("data/users.json")
 
 
 def save_user_data(data):
     if use_mock_data:
-        save_data("mock_data/mock_users.json", data)
+        save_data(MOCK_USERS, data)
+        return
     save_data("data/users.json", data)
 
 
 def load_parking_lot_data():
     if use_mock_data:
-        return load_data("mock_data/mock_parking-lots.json")
+        return load_data(MOCK_PARKING_LOTS)
     return load_data("data/parking-lots.json")
 
 
 def save_parking_lot_data(data):
     if use_mock_data:
-        save_data("mock_data/mock_parking-lots.json", data)
+        save_data(MOCK_PARKING_LOTS, data)
+        return
     save_data("data/parking-lots.json", data)
+
+def find_parking_session_id_by_plate(parking_lot_id: str, licenseplate="TEST-PLATE"):
+    filename = f"./data/pdata/p{parking_lot_id}-sessions.json"
+    if use_mock_data:
+        filename = MOCK_PARKING_SESSIONS
+    with open(filename, "r") as f:
+        parking_lots = json.load(f)
+
+    for k, v in parking_lots.items():
+        if v.get("licenseplate") == licenseplate:
+            return k
 
 
 def load_reservation_data():
@@ -494,10 +510,15 @@ def save_discounts_data(data):
 
 
 def save_parking_session_data(data, lid):
+    if use_mock_data:
+        save_data(MOCK_PARKING_SESSIONS, data)
+        return
     save_data(f"data/pdata/p{lid}-sessions.json", data)
 
 
 def load_parking_session_data(lid):
+    if use_mock_data:
+        return load_data(MOCK_PARKING_SESSIONS)
     return load_data(f"data/pdata/p{lid}-sessions.json")
 
 
