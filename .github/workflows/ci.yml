@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      USE_MOCK_DATA: true
     strategy:
       fail-fast: false
       matrix:
