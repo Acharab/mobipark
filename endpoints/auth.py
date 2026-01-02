@@ -4,25 +4,25 @@ from utils.storage_utils import load_user_data, save_user_data
 import uuid, hashlib, secrets
 from utils.passwords import hash_password_bcrypt, verify_bcrypt, verify_md5
 from models.auth_model import LoginRequest, RegisterRequest, User
+from models.hotel_manager_model import HotelManagerCreate
 
 router = APIRouter()
+
+
 @router.post("/login")
 def login(login_data: LoginRequest, response: Response):
     username = login_data.username
     password = login_data.password
 
     if not username or not password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing credentials"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing credentials")
 
     users = load_user_data()
     for user in users:
         if user.get("username") != username:
             continue
 
-        hash_type = user.get("hash_type", "md5") 
+        hash_type = user.get("hash_type", "md5")
         stored_pw = user.get("password", "")
 
         if hash_type == "bcrypt":
@@ -61,39 +61,27 @@ def register(register_data: RegisterRequest, response: Response, authorization: 
     role = register_data.role.upper() if register_data.role else "USER"
 
     if not username or not password or not name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing credentials"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing credentials")
 
     if role == "ADMIN":
         if not authorization:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Admin authorization required"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin authorization required"
             )
         admin_user = get_session(authorization)
         if not admin_user or admin_user.get("role") != "ADMIN":
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admins can create admin accounts"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create admin accounts"
             )
 
     users = load_user_data()
     if any(user.get("username") == username for user in users):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
 
     hashed_password = hash_password_bcrypt(password)
 
     new_user = User(
-        id=str(uuid.uuid4()),
-        username=username,
-        password=hashed_password,
-        name=name,
-        role=role
+        id=str(uuid.uuid4()), username=username, password=hashed_password, name=name, role=role
     ).model_dump()
 
     new_user["hash_type"] = "bcrypt"
@@ -105,9 +93,48 @@ def register(register_data: RegisterRequest, response: Response, authorization: 
     add_session(token, new_user)
     response.headers["Authorization"] = token
 
+    return {"message": f"User {username} registered", "session_token": token}
+
+
+@router.post("/register/hotel-manager")
+def register_hotel_manager(hotel_manager_data: HotelManagerCreate, authorization: str = Header(None)):
+    """admin only endpoint to create a hotel manager account and assign them a parking lot"""
+    if not authorization:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin authorization required")
+    admin_user = get_session(authorization)
+    if not admin_user or admin_user.get("role") != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create hotel manager accounts"
+        )
+    from utils.storage_utils import load_parking_lot_data
+
+    parking_lots = load_parking_lot_data()
+    if hotel_manager_data.parking_lot_id not in parking_lots:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Parking lot with Id {hotel_manager_data.parking_lot_id} not found",
+        )
+    users = load_user_data()
+    if any(user.get("username") == hotel_manager_data.username for user in users):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
+    hashed_password = hash_password_bcrypt(hotel_manager_data.password)
+    new_hotel_manager = User(
+        id=str(uuid.uuid4()),
+        username=hotel_manager_data.username,
+        password=hashed_password,
+        name=hotel_manager_data.name,
+        email=hotel_manager_data.email,
+        phone=hotel_manager_data.phone,
+        role="HOTEL_MANAGER",
+        managed_parking_lot_id=hotel_manager_data.parking_lot_id,
+    ).model_dump()
+    new_hotel_manager["hash_type"] = "bcrypt"
+    users.append(new_hotel_manager)
+    save_user_data(users)
     return {
-        "message": f"User {username} registered",
-        "session_token": token
+        "message": f"Hotel manager {hotel_manager_data.username} created successfully",
+        "username": hotel_manager_data.username,
+        "managed_parking_lot_id": hotel_manager_data.parking_lot_id,
     }
 
 
@@ -116,7 +143,4 @@ def logout(token: str):
     user = remove_session(token)
     if user:
         return {"message": "User logged out"}
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="No active session found"
-    )
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active session found")
