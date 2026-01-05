@@ -11,7 +11,11 @@ load_dotenv()
 use_mock_data = os.getenv("USE_MOCK_DATA", "true") == "true"
 
 # Define the database path globally
-DB_PATH = Path(__file__).parent / "../data/mobypark.db"
+# Check for test database path first (for pytest)
+if os.getenv("TEST_DB_PATH"):
+    DB_PATH = Path(os.getenv("TEST_DB_PATH"))
+else:
+    DB_PATH = Path(__file__).parent / "../data/mobypark.db"
 
 
 def init_db():
