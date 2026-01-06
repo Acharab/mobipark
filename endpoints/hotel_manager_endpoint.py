@@ -89,16 +89,23 @@ def create_hotel_discount_code(
             )
         now = datetime.now()
         timestamp = int(now.timestamp())
+        check_in = datetime.fromisoformat(discount_create.check_in_date)
+        if check_in.date() < now.date():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Check-in date cannot be in the past"
+            )
+
         # build the hotel discount code object
         discount_code = {
             "code": discount_create.code,
             "discount_type": "percentage",
             "discount_value": 100.0,
-            "max_uses": discount_create.max_uses,
+            "max_uses": 1,
             "current_uses": 0,
             "active": True,
             "created_at": f"{now.strftime('%d-%m-%Y %H:%M:%S')}{timestamp}",
-            "expires_at": discount_create.expires_at,
+            "check_in_date": discount_create.check_in_date,
+            "check_out_date": discount_create.check_out_date,
             "parking_lot_id": managed_lot_id,
             "created_by": session_user["username"],
             "guest_name": discount_create.guest_name,
@@ -116,7 +123,8 @@ def create_hotel_discount_code(
             )
         logger.info(
             f"Hotel discount code created: {discount_create.code} "
-            f"by {session_user['username']} for parking lot {managed_lot_id}"
+            f"by {session_user['username']} for parking lot {managed_lot_id} "
+            f"(valid from {discount_create.check_in_date} to {discount_create.check_out_date})"
         )
         return JSONResponse(content=discount_code, status_code=status.HTTP_201_CREATED)
     except HTTPException:

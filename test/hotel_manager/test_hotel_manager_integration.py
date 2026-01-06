@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timedelta
 
 
 class TestAdminCreatesHotelManager:
@@ -85,13 +86,15 @@ class TestHotelManagerCreateDiscountCodes:
 
     def test_hotel_manager_creates_discount_code(self, client, hotel_manager_token):
         """test hotel manager can create a 100% discount code"""
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         response = client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_manager_token},
             json={
                 "code": "GUEST-SMITH-2024",
-                "max_uses": 5,
-                "expires_at": "2025-12-31T23:59:59Z",
+                "check_in_date": check_in,
+                "check_out_date": check_out,
                 "guest_name": "Mr. Smith",
                 "notes": "VIP guest room 305",
             },
@@ -105,42 +108,84 @@ class TestHotelManagerCreateDiscountCodes:
         assert data["created_by"] == "hotel_mgr_test"
         assert data["is_hotel_code"]
         assert data["guest_name"] == "Mr. Smith"
-        assert data["max_uses"] == 5
+        assert data["max_uses"] == 1
+        assert data["check_in_date"] == check_in
+        assert data["check_out_date"] == check_out
         assert data["active"]
 
     def test_hotel_manager_creates_code_with_minimal_data(self, client, hotel_manager_token):
         """test creating discount code with only required fields"""
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         response = client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_manager_token},
-            json={"code": "MINIMAL-CODE"},
+            json={"code": "MINIMAL-CODE", "check_in_date": check_in, "check_out_date": check_out},
         )
         assert response.status_code == 201
         data = response.json()
         assert data["code"] == "MINIMAL-CODE"
         assert data["discount_value"] == 100.0
+        assert data["check_in_date"] == check_in
+        assert data["check_out_date"] == check_out
+
+    def test_hotel_manager_cannot_create_code_with_past_checkin(self, client, hotel_manager_token):
+        """test hotel manager cannot create code with checkin date in the past"""
+        check_in = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
+        response = client.post(
+            "/hotel-manager/discount-codes",
+            headers={"Authorization": hotel_manager_token},
+            json={
+                "code": "PAST-CHECKIN",
+                "check_in_date": check_in,
+                "check_out_date": check_out,
+            },
+        )
+        assert response.status_code == 422
+        assert "past" in response.json()["detail"].lower()
+
+    def test_hotel_manager_cannot_create_code_with_invalid_dates(self, client, hotel_manager_token):
+        """test hotel manager cannot create code with checkout before checkin"""
+        check_in = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        response = client.post(
+            "/hotel-manager/discount-codes",
+            headers={"Authorization": hotel_manager_token},
+            json={
+                "code": "INVALID-DATES",
+                "check_in_date": check_in,
+                "check_out_date": check_out,
+            },
+        )
+        assert response.status_code == 422
+        assert "after" in response.json()["detail"].lower()
 
     def test_hotel_manager_cannot_create_duplicate_code(self, client, hotel_manager_token):
         """test hotel manager cannot create duplicate discount codes"""
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_manager_token},
-            json={"code": "DUPLICATE-TEST"},
+            json={"code": "DUPLICATE-TEST", "check_in_date": check_in, "check_out_date": check_out},
         )
         response = client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_manager_token},
-            json={"code": "DUPLICATE-TEST"},
+            json={"code": "DUPLICATE-TEST", "check_in_date": check_in, "check_out_date": check_out},
         )
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
 
     def test_regular_user_cannot_create_hotel_discount_codes(self, client, user_token):
         """test regular user cannot create hotel discount codes"""
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         response = client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": user_token},
-            json={"code": "SHOULD-FAIL", "max_uses": 5},
+            json={"code": "SHOULD-FAIL", "check_in_date": check_in, "check_out_date": check_out},
         )
 
         assert response.status_code == 403
@@ -148,7 +193,12 @@ class TestHotelManagerCreateDiscountCodes:
 
     def test_unauthenticated_cannot_create_discount_codes(self, client):
         """test unauthenticated user cannot create discount codes"""
-        response = client.post("/hotel-manager/discount-codes", json={"code": "SHOULD-FAIL"})
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
+        response = client.post(
+            "/hotel-manager/discount-codes",
+            json={"code": "SHOULD-FAIL", "check_in_date": check_in, "check_out_date": check_out},
+        )
         assert response.status_code == 401
 
 
@@ -157,16 +207,18 @@ class TestHotelManagerViewDiscountCodes:
 
     def test_hotel_manager_views_all_their_codes(self, client, hotel_manager_token):
         """test hotel manager can view all their discount codes"""
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_manager_token},
-            json={"code": "CODE-1", "max_uses": 5},
+            json={"code": "CODE-1", "check_in_date": check_in, "check_out_date": check_out},
         )
 
         client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_manager_token},
-            json={"code": "CODE-2", "max_uses": 5},
+            json={"code": "CODE-2", "check_in_date": check_in, "check_out_date": check_out},
         )
 
         response = client.get("/hotel-manager/discount-codes", headers={"Authorization": hotel_manager_token})
@@ -176,10 +228,18 @@ class TestHotelManagerViewDiscountCodes:
 
     def test_hotel_manager_views_specific_code(self, client, hotel_manager_token):
         """test hotel manager can view a specific discount code"""
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         response = client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_manager_token},
-            json={"code": "SPECIFIC-CODE", "guest_name": "Jane Doe", "notes": "Premium suite"},
+            json={
+                "code": "SPECIFIC-CODE",
+                "check_in_date": check_in,
+                "check_out_date": check_out,
+                "guest_name": "Jane Doe",
+                "notes": "Premium suite",
+            },
         )
         response = client.get(
             "/hotel-manager/discount-codes/SPECIFIC-CODE", headers={"Authorization": hotel_manager_token}
@@ -189,6 +249,8 @@ class TestHotelManagerViewDiscountCodes:
         assert data["code"] == "SPECIFIC-CODE"
         assert data["guest_name"] == "Jane Doe"
         assert data["notes"] == "Premium suite"
+        assert data["check_in_date"] == check_in
+        assert data["check_out_date"] == check_out
 
     def test_hotel_manager_cannot_view_nonexistent_code(self, client, hotel_manager_token):
         """test viewing non-existent code returns 404"""
@@ -208,10 +270,12 @@ class TestHotelManagerDeactivateDiscountCodes:
     """test hotel managers deactivating discount codes"""
 
     def test_hotel_manager_deactivates_code(self, client, hotel_manager_token):
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_manager_token},
-            json={"code": "DEACTIVATE-ME"},
+            json={"code": "DEACTIVATE-ME", "check_in_date": check_in, "check_out_date": check_out},
         )
         response = client.delete(
             "/hotel-manager/discount-codes/DEACTIVATE-ME", headers={"Authorization": hotel_manager_token}
@@ -268,6 +332,8 @@ class TestCompleteHotelManagerWorkflow:
     def test_complete_workflow(self, client, admin_token):
         """test complete workflow from hotel manager creation to discount code usage"""
         # admin creates hotel manager
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         response = client.post(
             "/auth/register/hotel-manager",
             headers={"Authorization": admin_token},
@@ -298,8 +364,8 @@ class TestCompleteHotelManagerWorkflow:
             headers={"Authorization": hotel_token},
             json={
                 "code": "WORKFLOW-GUEST-001",
-                "max_uses": 3,
-                "expires_at": "2025-06-30T23:59:59Z",
+                "check_in_date": check_in,
+                "check_out_date": check_out,
                 "guest_name": "Workflow Guest",
                 "notes": "Conference attendee",
             },
@@ -309,6 +375,8 @@ class TestCompleteHotelManagerWorkflow:
         assert data["code"] == "WORKFLOW-GUEST-001"
         assert data["discount_value"] == 100.0
         assert data["parking_lot_id"] == "2"
+        assert data["check_in_date"] == check_in
+        assert data["check_out_date"] == check_out
 
         # hotel manager views all of their codes
         response = client.get("/hotel-manager/discount-codes", headers={"Authorization": hotel_token})
@@ -319,7 +387,7 @@ class TestCompleteHotelManagerWorkflow:
         response = client.post(
             "/hotel-manager/discount-codes",
             headers={"Authorization": hotel_token},
-            json={"code": "WORKFLOW-GUEST-002", "max_uses": 1},
+            json={"code": "WORKFLOW-GUEST-002", "check_in_date": check_in, "check_out_date": check_out},
         )
         assert response.status_code == 201
         # hotel manager views specific code
@@ -348,6 +416,8 @@ class TestHotelManagerIsolation:
 
     def test_hotel_managers_cannot_see_each_others_codes(self, client, admin_token):
         """test hotel managers are isolated from other hotel managers"""
+        check_in = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        check_out = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
         client.post(
             "/auth/register/hotel-manager",
             headers={"Authorization": admin_token},
@@ -377,10 +447,14 @@ class TestHotelManagerIsolation:
 
         # manager 1 and 2 create a code
         client.post(
-            "/hotel-manager/discount-codes", headers={"Authorization": token_1}, json={"code": "MGR1-CODE"}
+            "/hotel-manager/discount-codes",
+            headers={"Authorization": token_1},
+            json={"code": "MGR1-CODE", "check_in_date": check_in, "check_out_date": check_out},
         )
         client.post(
-            "/hotel-manager/discount-codes", headers={"Authorization": token_2}, json={"code": "MGR2-CODE"}
+            "/hotel-manager/discount-codes",
+            headers={"Authorization": token_2},
+            json={"code": "MGR2-CODE", "check_in_date": check_in, "check_out_date": check_out},
         )
         # manager 1 should only see their own code
         response = client.get("/hotel-manager/discount-codes", headers={"Authorization": token_1})

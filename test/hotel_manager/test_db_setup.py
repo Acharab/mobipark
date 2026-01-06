@@ -32,6 +32,10 @@ def test_db_fixture_creates_discount_codes(client):
     assert existing_code is not None
     assert existing_code["created_by"] == "hotel_mgr_test"
     assert existing_code["is_hotel_code"] == 1
+    assert existing_code["check_in_date"] == "2026-01-10"
+    assert existing_code["check_out_date"] == "2026-01-15"
+    assert existing_code["max_uses"] == 1
+    assert existing_code["current_uses"] == 0
 
 
 def test_admin_token_fixture_works(client, admin_token):
