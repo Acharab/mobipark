@@ -503,6 +503,63 @@ def get_payment_data_by_id(payment_id: str) -> Optional[Dict]:
     )
 
 
+def get_payments_by_initiator(initiator: str) -> List[Dict]:
+    """
+    Loads payments for a specific user using a WHERE clause.
+    """
+    if use_mock_data:
+        payments = load_data(MOCK_PAYMENTS)
+        return [p for p in payments if p.get("initiator") == initiator]
+
+    normalized_data = []
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM payments WHERE "initiator" = ?', (initiator,))
+            for row in cursor:
+                normalized_data.append(dict(row))
+    except sqlite3.OperationalError as e:
+        print(f"Error loading payments for initiator '{initiator}': {e}")
+        return []
+
+    return unnormalize_data(normalized_data)
+
+
+def get_refunds_for_user(username: str) -> List[Dict]:
+    """
+    Retrieves all refunds associated with payments made by a specific user.
+    Uses a JOIN to avoid N+1 queries.
+    """
+    if use_mock_data:
+        # Mock data implementation (inefficient but consistent with mock behavior)
+        user_payments = [p for p in load_data(MOCK_PAYMENTS) if p.get("initiator") == username]
+        transaction_ids = {p.get("transaction") for p in user_payments}
+        all_refunds = load_data(MOCK_REFUNDS)
+        return [r for r in all_refunds if r.get("original_transaction_id") in transaction_ids]
+
+    normalized_data = []
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            # Select all columns from refunds table
+            sql = """
+                SELECT r.* 
+                FROM refunds r
+                JOIN payments p ON r.original_transaction_id = p."transaction"
+                WHERE p.initiator = ?
+            """
+            cursor.execute(sql, (username,))
+            for row in cursor:
+                normalized_data.append(dict(row))
+    except sqlite3.OperationalError as e:
+        print(f"Error loading refunds for user '{username}': {e}")
+        return []
+
+    return unnormalize_data(normalized_data)
+
+
 def save_new_payment_to_db(payment_data: Dict):
     if use_mock_data:
         payments = load_data(MOCK_PAYMENTS)
@@ -626,19 +683,22 @@ def get_refunds_by_transaction_id(transaction_id: str) -> List[Dict]:
         filtered_refunds = []
         refunds = load_data(MOCK_REFUNDS)
         for refund in refunds:
-            if refund.get("transaction_id") == transaction_id:
+            if refund.get("original_transaction_id") == transaction_id:
                 filtered_refunds.append(refund)
         return filtered_refunds
     try:
         with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT data FROM refunds WHERE json_extract(data, '$.original_transaction_id') = ?",
+                'SELECT * FROM refunds WHERE "original_transaction_id" = ?',
                 (transaction_id,),
             )
             rows = cursor.fetchall()
-            return [json.loads(row[0]) for row in rows]
-    except Exception:
+            normalized_data = [dict(row) for row in rows]
+            return unnormalize_data(normalized_data)
+    except Exception as e:
+        print(f"Error loading refunds for transaction {transaction_id}: {e}")
         return []
 
 
@@ -715,33 +775,24 @@ def load_data(filename):
         return None
 
 
-# --- Specific Application File I/O Functions (Existing - Kept for legacy file access) ---
+# --- Specific Application File I/O Functions (Updated to use DB when applicable) ---
 
 
 def load_user_data():
-    if use_mock_data:
-        return load_data(MOCK_USERS)
-    return load_data("data/users.json")
+    return load_user_data_from_db()
 
 
 def save_user_data(data):
-    if use_mock_data:
-        save_data(MOCK_USERS, data)
-        return
-    save_data("data/users.json", data)
+    return save_user_data_to_db(data)
 
 
 def load_parking_lot_data():
-    if use_mock_data:
-        return load_data(MOCK_PARKING_LOTS)
-    return load_data("data/parking-lots.json")
+    return load_parking_lot_data_from_db()
 
 
 def save_parking_lot_data(data):
-    if use_mock_data:
-        save_data(MOCK_PARKING_LOTS, data)
-        return
-    save_data("data/parking-lots.json", data)
+    return save_parking_lot_data_to_db(data)
+
 
 def find_parking_session_id_by_plate(parking_lot_id: str, licenseplate="TEST-PLATE"):
     filename = f"./data/pdata/p{parking_lot_id}-sessions.json"
@@ -756,42 +807,42 @@ def find_parking_session_id_by_plate(parking_lot_id: str, licenseplate="TEST-PLA
 
 
 def load_reservation_data():
-    if use_mock_data:
-        return load_data(MOCK_RESERVATIONS)
-    return load_data("data/reservations.json")
+    return load_reservation_data_from_db()
 
 
 def save_reservation_data(data):
-    if use_mock_data:
-        save_data(MOCK_RESERVATIONS, data)
-        return
-    save_data("data/reservations.json", data)
+    return save_reservation_data_to_db(data)
 
 
 def load_payment_data():
-    if use_mock_data:
-        return load_data(MOCK_PAYMENTS)
-    return load_data("data/payments.json")
+    return load_payment_data_from_db()
 
 
 def save_payment_data(data):
     if use_mock_data:
         save_data(MOCK_PAYMENTS, data)
         return
-    save_data("data/payments.json", data)
+    save_json_to_db("payments", data)
 
 
 def load_discounts_data():
-    if use_mock_data:
-        return load_data(MOCK_DISCOUNTS)
-    return load_data("data/discounts.csv")
+    return load_discounts_data_from_db()
 
 
 def save_discounts_data(data):
+    return save_discounts_data_to_db(data)
+
+
+def load_refunds_data():
+    return load_refunds_data_from_db()
+
+
+def save_refunds_data(data):
+    # Refunds uses individual save/update mostly, but for bulk save:
     if use_mock_data:
-        save_data(MOCK_DISCOUNTS, data)
+        save_data(MOCK_REFUNDS, data)
         return
-    save_data("data/discounts.csv", data)
+    save_json_to_db("refunds", data)
 
 
 def save_parking_session_data(data, lid):
@@ -812,18 +863,11 @@ VEHICLE_FILE = "data/vehicles.json"
 
 
 def load_vehicle_data():
-    """Load all vehicles from JSON file."""
-    if use_mock_data:
-        return load_data(MOCK_VEHICLES)
-    return load_data(VEHICLE_FILE)
+    return load_vehicle_data_from_db()
 
 
 def save_vehicle_data(data):
-    """Save the full vehicle dataset to JSON file."""
-    if use_mock_data:
-        save_data(MOCK_VEHICLES, data)
-        return
-    save_data(VEHICLE_FILE, data)
+    return save_vehicle_data_to_db(data)
 
 
 def get_vehicle_data_by_id(vehicle_id: str):
