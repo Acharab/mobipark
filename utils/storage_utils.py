@@ -282,13 +282,21 @@ def load_user_data_from_db():
 
 def save_user_data_to_db(data):
     if use_mock_data:
-        save_data(MOCK_USERS, data)
+        users = load_data(MOCK_USERS)
+        users.append(data)
+        save_data(MOCK_USERS, users)
         return
     save_json_to_db("users", data)
 
 
 # Targeted access (example for other entities)
 def get_user_data_by_username(username: str) -> Optional[Dict]:
+    if use_mock_data:
+        users = load_data(MOCK_USERS)
+        for user in users:
+            if user.get("username") == username:
+                return user
+        return None
     return load_single_json_from_db("users", key_col="username", key_val=username)
 
 
@@ -301,7 +309,10 @@ def load_parking_lot_data_from_db():
 
 def save_parking_lot_data_to_db(data):
     if use_mock_data:
-        save_data(MOCK_PARKING_LOTS, data)
+        parking_lots = load_data(MOCK_PARKING_LOTS)
+        lot_id = data.get("id")
+        parking_lots[lot_id] = data
+        save_data(MOCK_PARKING_LOTS, parking_lots)
         return
     save_json_to_db("parking_lots", data)
 
@@ -315,7 +326,9 @@ def load_reservation_data_from_db():
 
 def save_reservation_data_to_db(data):
     if use_mock_data:
-        save_data(MOCK_RESERVATIONS, data)
+        reservations = load_data(MOCK_RESERVATIONS)
+        reservations.append(data)
+        save_data(MOCK_RESERVATIONS, reservations)
         return
     save_json_to_db("reservations", data)
 
@@ -333,13 +346,15 @@ def get_payment_data_by_id(payment_id: str) -> Optional[Dict]:
         for payment in payments:
             if payment.get("transaction") == payment_id:
                 return payment
-        return ValueError("Payment not found")
+        return None
     return load_single_json_from_db("payments", key_col="transaction", key_val=payment_id)
 
 
 def save_new_payment_to_db(payment_data: Dict):
     if use_mock_data:
-        save_data(MOCK_PAYMENTS, payment_data)
+        payments = load_data(MOCK_PAYMENTS)
+        payments.append(payment_data)
+        save_data(MOCK_PAYMENTS, payments)
         return
     insert_single_json_to_db("payments", payment_data)
 
@@ -352,7 +367,7 @@ def update_existing_payment_in_db(payment_id: str, payment_data: Dict):
                 payment.update(payment_data)
                 save_data(MOCK_PAYMENTS, payments)
                 return
-        raise ValueError("Vehicle not found")
+        raise ValueError("Payment not found")
     update_single_json_in_db("payments", key_col="transaction", key_val=payment_id, update_item=payment_data)
 
 
@@ -374,20 +389,22 @@ def get_discount_by_code(discount_code: str) -> Optional[Dict]:
         for discount in discounts:
             if discount.get("code") == discount_code:
                 return discount
-        return ValueError("Discount not found")
+        return None
     return load_single_json_from_db("discounts", key_col="code", key_val=discount_code)
 
 
 def save_new_discount_to_db(discount_data: Dict):
     if use_mock_data:
-        save_data(MOCK_DISCOUNTS, discount_data)
+        discounts = load_data(MOCK_DISCOUNTS)
+        discounts.append(discount_data)
+        save_data(MOCK_DISCOUNTS, discounts)
         return
     insert_single_json_to_db("discounts", discount_data)
 
 
 def update_existing_discount_in_db(discount_code: str, discount_data: Dict):
     if use_mock_data:
-        discounts = load_data(MOCK_PAYMENTS)
+        discounts = load_data(MOCK_DISCOUNTS)
         for discount in discounts:
             if discount.get("code") == discount_code:
                 discount.update(discount_data)
@@ -399,7 +416,9 @@ def update_existing_discount_in_db(discount_code: str, discount_data: Dict):
 
 def save_discounts_data_to_db(data):
     if use_mock_data:
-        save_data(MOCK_DISCOUNTS, data)
+        discounts = load_data(MOCK_DISCOUNTS)
+        discounts.append(data)
+        save_data(MOCK_DISCOUNTS, discounts)
         return
     save_json_to_db("discounts", data)
 
@@ -417,13 +436,15 @@ def get_refund_by_id(refund_id: str) -> Optional[Dict]:
         for refund in refunds:
             if refund.get("refund_id") == refund_id:
                 return refund
-        return ValueError("Refund not found")
+        return None
     return load_single_json_from_db("refunds", key_col="refund_id", key_val=refund_id)
 
 
 def save_new_refund_to_db(refund_data: Dict):
     if use_mock_data:
-        save_data(MOCK_REFUNDS, refund_data)
+        refunds = load_data(MOCK_REFUNDS)
+        refunds.append(refund_data)
+        save_data(MOCK_REFUNDS, refunds)
         return
     insert_single_json_to_db("refunds", refund_data)
 
@@ -573,26 +594,41 @@ def find_parking_session_id_by_plate(parking_lot_id: str, licenseplate="TEST-PLA
 
 
 def load_reservation_data():
+    if use_mock_data:
+        return load_data(MOCK_RESERVATIONS)
     return load_data("data/reservations.json")
 
 
 def save_reservation_data(data):
+    if use_mock_data:
+        save_data(MOCK_RESERVATIONS, data)
+        return
     save_data("data/reservations.json", data)
 
 
 def load_payment_data():
+    if use_mock_data:
+        return load_data(MOCK_PAYMENTS)
     return load_data("data/payments.json")
 
 
 def save_payment_data(data):
+    if use_mock_data:
+        save_data(MOCK_PAYMENTS, data)
+        return
     save_data("data/payments.json", data)
 
 
 def load_discounts_data():
+    if use_mock_data:
+        return load_data(MOCK_DISCOUNTS)
     return load_data("data/discounts.csv")
 
 
 def save_discounts_data(data):
+    if use_mock_data:
+        save_data(MOCK_DISCOUNTS, data)
+        return
     save_data("data/discounts.csv", data)
 
 
@@ -623,9 +659,7 @@ def load_vehicle_data():
 def save_vehicle_data(data):
     """Save the full vehicle dataset to JSON file."""
     if use_mock_data:
-        vehicles = load_vehicle_data()
-        vehicles.append(data)
-        save_data(MOCK_VEHICLES, vehicles)
+        save_data(MOCK_VEHICLES, data)
         return
     save_data(VEHICLE_FILE, data)
 
@@ -645,9 +679,11 @@ def get_vehicle_data_by_id(vehicle_id: str):
 
 def get_vehicle_data_by_user(user_id: str):
     """Return all vehicles owned by a specific user."""
-    vehicles = load_json_from_db("vehicles")
+    vehicles = None
     if use_mock_data:
         vehicles = load_vehicle_data()
+    else:
+        vehicles = load_json_from_db("vehicles")
     return [v for v in vehicles if v.get("user_id") == user_id]
 
 
@@ -706,6 +742,12 @@ def delete_vehicle_from_db(vehicle_id: str):
 
 
 def get_user_data_by_username_for_vehicles(username: str) -> Optional[Dict]:
+    if use_mock_data:
+        users = load_data(MOCK_USERS)
+        for user in users:
+            if user.get("username") == username:
+                return user
+        return None
     return load_single_json_from_db("users", "username", username)
 
 
