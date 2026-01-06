@@ -65,7 +65,8 @@ def test_db():
         current_uses INTEGER,
         active INTEGER,
         created_at TEXT,
-        expires_at TEXT,
+        check_in_date TEXT,
+        check_out_date TEXT,
         parking_lot_id TEXT,
         created_by TEXT,
         guest_name TEXT,
@@ -133,8 +134,8 @@ def test_db():
     cursor.execute(
         """
         INSERT INTO discounts VALUES 
-        ('EXISTING-CODE', 'percentage', 100.0, 10, 2, 1, '1704067200',
-         '2025-12-31T23:59:59Z', '1', 'hotel_mgr_test', 'John Doe',
+        ('EXISTING-CODE', 'percentage', 100.0, 1, 0, 1, '1704067200',
+         '2026-01-10', '2026-01-15', '1', 'hotel_mgr_test', 'John Doe',
          'Test guest', 1)
     """
     )
