@@ -10,7 +10,7 @@ class CreateReservation(BaseModel):
     user_id: Optional[str] = None 
     vehicle_id: str
     start_time: str
-    end_time: str = ""
+    end_time: str
     parking_lot_id: str
     status: str = "pending"
     created_at: Optional[str] = None
@@ -23,7 +23,7 @@ class CreateReservation(BaseModel):
             raise ValueError("Vehicle id must be a valid uuid") 
         return str(value)
 
-    @field_validator('start_time')
+    @field_validator('start_time', 'end_time')
     def validate_iso_datetime(cls, value):
         if not re.match(ISO_REGEX, value):
             raise ValueError("Date must be in iso format: YYYY-MM-DDTHH:MM")
@@ -57,8 +57,8 @@ class UpdateReservation(BaseModel):
             raise ValueError("Vehicle id must be a valid uuid") 
         return str(value)
 
-    @field_validator('start_time')
-    def validate_iso_start_time(cls, value):
+    @field_validator('start_time', 'end_time')
+    def validate_iso_datetime(cls, value):
         if not re.match(ISO_REGEX, value):
             raise ValueError("Date must be in iso format: YYYY-MM-DDTHH:MM")
         try:
