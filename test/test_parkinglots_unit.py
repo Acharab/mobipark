@@ -3,6 +3,7 @@ from services import parking_services
 from models.parking_lots_model import ParkingLot, Coordinates, UpdateParkingLot, ParkingSessionCreate
 from models.reservations_model import CreateReservation
 from uuid import uuid4
+from datetime import datetime
 
 def test_create_parking_lot(monkeypatch):
     # Set up fake storage
@@ -381,3 +382,92 @@ def test_stop_parking_session(monkeypatch):
     )
 
     parking_services.stop_parking_session(lot_id, session_data, session_user)
+    assert session_storage[session_id]["licenseplate"] == license_plate
+    assert session_storage[session_id]["stopped"] == datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+def test_update_parking_session(monkeypatch):
+    lot_storage = {}
+    session_storage = {}
+    lot_id = "1"
+    session_id = "1"
+    license_plate = "TEST-PLATE-UPDATED"
+
+    def test_load_lots():
+        lot_storage[lot_id] = ParkingLot(
+        name = "TEST",
+        location = "TEST_LOCATION",
+        address ="TEST_ADDRESS",
+        capacity = 10,
+        reserved = 0,
+        tariff = 2.50,
+        daytariff = 20.00,
+        created_at = "2025-12-12",
+        coordinates = Coordinates(
+            lat = 40.712776,
+            lng = -74.005974
+        )).model_dump()
+        return lot_storage
+    
+    def test_load_sessions(lot_id):
+        session_storage[session_id] = {
+            "licenseplate": "TEST-PLATE",
+            "started": "2026-12-12T10:00",
+            "stopped": None,
+            "user": "testuser"
+        }
+        return session_storage
+    
+    def test_save_sessions(session, lot_id):
+        session_storage.update(session)
+    
+    monkeypatch.setattr(
+        "services.parking_services.storage_utils.load_parking_lot_data",
+        test_load_lots
+    )
+
+    monkeypatch.setattr(
+        "services.parking_services.storage_utils.load_parking_session_data",
+        test_load_sessions
+    )
+
+    monkeypatch.setattr(
+        "services.parking_services.storage_utils.save_parking_session_data",
+        test_save_sessions
+    )
+
+    updated_session = ParkingSessionCreate(
+        licenseplate = license_plate
+    )
+
+    parking_services.update_parking_session(lot_id, session_id, updated_session)
+    assert session_storage[session_id]["licenseplate"] == license_plate
+
+def test_delete_parking_session(monkeypatch):
+    session_storage = {}
+    session_id = "1"
+    lot_id = "1"
+
+    def test_load_sessions(lot_id):
+        session_storage[session_id] = {
+            "licenseplate": "TEST-PLATE",
+            "started": "2026-12-12T10:00",
+            "stopped": None,
+            "user": "testuser"
+        }
+        return session_storage
+    
+    def test_save_sessions(session, lot_id):
+        session_storage.update(session)
+
+    monkeypatch.setattr(
+        "services.parking_services.storage_utils.load_parking_session_data",
+        test_load_sessions
+    )
+
+    monkeypatch.setattr(
+        "services.parking_services.storage_utils.save_parking_session_data",
+        test_save_sessions
+    )
+
+    parking_services.delete_parking_session(session_id, lot_id)
+    assert session_id not in session_storage
