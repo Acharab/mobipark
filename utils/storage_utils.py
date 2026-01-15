@@ -1072,7 +1072,7 @@ def save_parking_session_data(data):
     if use_mock_data:
         save_data(MOCK_PARKING_SESSIONS, data)
         return
-    return save_vehicle_data_to_db(data)
+    return save_parking_session_data_to_db(data)
 
 
 def load_parking_session_data():
@@ -1126,7 +1126,19 @@ def save_parking_session_data_to_db(data):
         parking_sessions = load_data(MOCK_PARKING_SESSIONS)
         parking_sessions.append(data)
         return save_data(MOCK_PARKING_SESSIONS, data)
-    insert_single_json_to_db("parking_sessions", data)
+    save_json_to_db("parking_sessions", data)
+
+
+def delete_parking_session_from_db(session_id: str):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM parking_sessions WHERE id == ?", (session_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+    except sqlite3.OperationalError as e:
+        print(f"Error deleting session: {e}")
+        return False
 
 
 # find a parking session ID by parking lot and license plate

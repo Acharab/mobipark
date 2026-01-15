@@ -53,7 +53,7 @@ def get_parking_lots():
     response_description="Parking session details"
 )
 def get_parking_sessions(parking_lot_id: str, session_user: Dict[str, str] = Depends(auth_services.require_auth)):
-    return parking_services.get_parking_session(parking_lot_id, session_user)
+    return parking_services.get_parking_sessions(parking_lot_id, session_user)
     
 @router.post(
     "/parking-lots/",

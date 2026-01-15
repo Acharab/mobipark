@@ -82,8 +82,7 @@ def delete_parking_lot(name="TEST_PARKING_LOT"):
     storage_utils.save_parking_lot_data(parking_lots)
 
 
-def delete_parking_session(parking_lot_id: str, license_plate="TEST-PLATE"):
-    filename = f"../data/pdata/p{parking_lot_id}-sessions.json"
+def delete_parking_session(session_id, parking_lot_id: str, license_plate="TEST-PLATE"):
     if use_mock_data:
         filename = MOCK_PARKING_SESSIONS
         with open(filename, "r") as f:
@@ -93,12 +92,8 @@ def delete_parking_session(parking_lot_id: str, license_plate="TEST-PLATE"):
         with open(filename, "w") as f:
             json.dump(sessions, f, indent=2)
         return
-    with open(filename, "r") as f:
-        sessions = json.load(f)
-    new_parking_sessions = {k: v for k, v in sessions.items() if v.get("licenseplate") != license_plate}
-    with open(filename, "w") as f:
-        json.dump(new_parking_sessions, f)
-
+    storage_utils.delete_parking_session_from_db(session_id)
+    
 
 def find_parking_lot_id_by_name():
     if use_mock_data:
