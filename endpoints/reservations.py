@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 USER = "USER"
 ADMIN = "ADMIN"
 
+# --- Helper Functions ---
 
 def require_auth(request: Request) -> Dict[str, str]:
     auth_token = request.headers.get("Authorization")
@@ -34,8 +35,6 @@ def require_auth(request: Request) -> Dict[str, str]:
 
     return session_user
 
-
-# --- Helper Functions ---
 def find_earliest_available_time(parking_lot_id: str, reservations: List[Dict[str, Any]]) -> Optional[str]:
     """find the earliest end_time from all active reservations for a specific parking lot
     (returns earliest end_time as string, none if no reservations)"""
@@ -264,12 +263,12 @@ def update_reservation(
     -**Users**: Can only update their own reservation and cant update the cost or status of the reservation
     -**Admin**: Can update every clients reservation including the cost and status of it
     -**Validation**:
-        Checks if the end time is before the start time,
-        Checks if the user has permission to update the reservation,
-        Denies permission to update the cost and status if its a user and not Admin
-        Checks if the status is valid
+        Checks if the end time is before the start time.
+        Checks if the user has permission to update the reservation.
+        Denies permission to update the cost and status if its a user and not Admin.
+        Checks if the status is valid.
         If the admin updates a reservation, checks if the the user_id is given.
-        Checks if the updated parking lot id exists
+        Checks if the updated parking lot id exists.
         Gives an error if the reservation is not found.
     """
     try:
@@ -370,8 +369,8 @@ def delete_reservation(reservation_id: str, session_user: Dict[str, str] = Depen
     -**Admin**: Can delete every reservation
     -**Validation**:
     Checks if the reservation belongs to the user.
-    Checks if the parking lot exists.
-    Checks if the reservation exists
+        Checks if the parking lot exists.
+        Checks if the reservation exists
     """
     try:
         reservations = load_reservation_data()
