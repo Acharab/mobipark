@@ -87,7 +87,7 @@ def test_update_parking_lot_one_field(monkeypatch):
         )
     )
     
-    key = "xyz"
+    key = "999999"
     storage.append({
         "id": key,
         **dummy_lot.model_dump()
@@ -144,7 +144,7 @@ def test_update_parking_lot_all_fields(monkeypatch):
         )
     )
     
-    key = "xyz"
+    key = "999999"
     storage.append({
         "id": key,
         **dummy_lot.model_dump()
@@ -212,7 +212,7 @@ def test_delete_parking_lot(monkeypatch):
         )
     )
     
-    key = "xyz"
+    key = "99999"
     storage.append({
         "id": key,
         **dummy_lot.model_dump()
@@ -229,7 +229,7 @@ def test_start_parking_session(monkeypatch):
 
     lot_storage = []
     session_storage = []
-    lot_id = "xyz"
+    lot_id = "999999"
     license_plate = "TEST-PLATE"
 
     def test_load_lots():
@@ -332,8 +332,8 @@ def test_stop_parking_session(monkeypatch):
         "role": "USER"
     }
     license_plate = "TEST-PLATE"
-    lot_id = "xyz"
-    session_id = "xyz"
+    lot_id = "999999"
+    session_id = "999999"
     lot_storage = []
     session_storage = []
 
@@ -454,8 +454,8 @@ def test_stop_parking_session(monkeypatch):
 def test_update_parking_session(monkeypatch):
     lot_storage = []
     session_storage = []
-    lot_id = "1"
-    session_id = "1"
+    lot_id = "999999"
+    session_id = "999999"
     license_plate = "TEST-PLATE-UPDATED"
 
     def test_load_lots():
@@ -518,8 +518,8 @@ def test_update_parking_session(monkeypatch):
 
 def test_delete_parking_session(monkeypatch):
     session_storage = []
-    session_id = "1"
-    lot_id = "1"
+    session_id = "999999"
+    lot_id = "999999"
 
     def test_load_sessions():
         return session_storage.copy()
