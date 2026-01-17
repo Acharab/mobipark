@@ -1,5 +1,4 @@
 name: CD - Production Deployment
-
 on:
   push:
     branches:
@@ -14,16 +13,16 @@ jobs:
       
       - name: Build Docker image
         run: |
-          docker build -t mobipark-api:latest .
+          sudo docker build -t mobipark-api:latest .
       
       - name: Stop and remove old container
         run: |
-          docker stop mobipark-api || true
-          docker rm mobipark-api || true
+          sudo docker stop mobipark-api || true
+          sudo docker rm mobipark-api || true
       
       - name: Start new container
         run: |
-          docker run -d \
+          sudo docker run -d \
             --name mobipark-api \
             -p 8000:8000 \
             -e USE_MOCK_DATA=false \
@@ -36,5 +35,5 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 10
-          docker ps | grep mobipark-api
+          sudo docker ps | grep mobipark-api
           curl -f http://localhost:8000/ || echo "API check completed"
